@@ -1,0 +1,7 @@
+"Cor_prue.R" = Script del proyecto de correlaciones
+"Modelos_DD.R" = Script de los modelos de nicho en kuenm
+"Post_modelosTC_DD.R" = Script de los analisis postmodelado para los metodos binarios (TC)      
+"Post_modelosTMC_DD.R" = Script de los analisis postmodelado para los metodos con cambio medio (TMC) - la primera parte de TC es la misma y esta actualizada
+"Script_down_spp_DD.R" = Script que contiene la informción para descargar del GBIF y tratar los datos
+"Script_tablas_crudas_DD.R" = Script para limpiar los datos
+"variables_msc_DD.R" = Script de analisis de variables
