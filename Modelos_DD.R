@@ -60,7 +60,7 @@ for(i in 1:length(DATOS)){
   threshold <- 5
   rand_percent <- 50
   iterations <- 500
-  kept <- TRUE
+  kept <- TRUE #eliminar modelos candidatos
   selection <- "OR_AICc"
   paral_proc <- FALSE 
   
