@@ -1,4 +1,4 @@
-#En este script voy a hacer todo lo que lleva el postprocesamiento de lomodelos   
+#En este script voy a hacer todo lo que lleva el postprocesamiento de los modelos   
 
 #-------------------------------------------------------------------------------------------------------------- # 
 
