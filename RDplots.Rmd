@@ -1,0 +1,152 @@
+---
+title: "Diversity-range plots"
+author: "Mauricio Diaz"
+date: "2023-08-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Este documento, tiene la interpretación y explicación en la construcción de los plots de rango-diversidad propuestos inicialmente por [Arita et al. (2008)](https://www.journals.uchicago.edu/doi/10.1086/590954), modificado por [Villalobos et al. (2011)](https://www.sciencedirect.com/science/article/pii/S0006320712004223?via%3Dihub) con un enforque hacia la rareza y la priorización en conservación, así mismo, esta aproximación fue tomada por [Soberón et al. (2021)](https://journals.ku.edu/jbi/article/view/14782/14007) en donde realizan una aproximación diferente invirtiendo los ejes y calculando de una manera distinta la dispersión (Dispersion-field) a través de la división por la riqueza en cada uno de los sitios (ver más adelante), todos estos calculos e índices pueden verse en un documento publicado por [Soberón y Cavner (2015)](https://journals.ku.edu/jbi/article/view/4801).
+
+NOTA: Particularmente, existe una diferencia en el establecimiento y nombramiento de las variables (más no en su interpretación) entre la aproximación de Arita y Fabricio (Ver Arita et al. (2004); Villalobos et al. (2011)) con lo propuesto por Soberon (Ver Soberon et al. (2015); Soberón y Cavner(2015)). En la explicación explico un poco esto en la definición de lo que es el campo de dispersión (Disfersion-field).
+
+*Parte de estos códigos fueron obtenidos del código proporcionado por [Soberón et al. (2021)](https://journals.ku.edu/jbi/article/view/14782/14007).*
+
+```{r Paquetes}
+# Este codigo es tomado del código proporcionado por Soberon et al 20221. Simplemente son los paquetes en donde se encuentran las funciones que se usan oara obtener los índices desde las mátrices de presencia ausencia (PAM)
+
+# Packages 
+## installing remotes to install biosurvey using it
+#install.packages("remotes")
+library(remotes) # install_github
+
+## installing biosurey (you may be asked to update other packages; not updating 
+## those packages may prevent potential errors)
+#remotes::install_github("claununez/biosurvey") #Este paquete fue desarrollado por los autores
+
+## loading other packages
+library(biosurvey) # PAM_indices prepare_PAM_CS plot_PAM_CS assign_blocks 
+library(maps) # map
+
+#install.packages("viridis")
+library(viridis) # magma viridis viridis_pal 
+
+# function to produce old diagrams -  Plots de Arita et al. 2008, Villalobos et al. 2011
+# Nota: Esta función fue elaborada por Soberón et al. 2021 para correr y armar los plots propuestos por Arita et a. 2004 y Villalobos et al. 2011. Hago una pequeña modificación para colorear los plots con una tercera variable más adelante.
+
+source("https://raw.githubusercontent.com/jsoberon/PAMs-Mexico/master/Function_old_diagrams.R")
+```
+
+## Creación de PAM
+
+Voy a crear una matriz de presencia ausencia, con 10 localidades seleccionadas aleatoriamente dentro de México. Cabe aclarar que cada que hable de sitio estaré refiriéndome a pixeles.
+
+```{r PAM}
+PAM.mix<- cbind(lon=c(-101.116,-98.334,-99.553,-100.866,-101.366,-96.396,-95.802,-99.334,-97.959,-98.209),
+      lat= c(22.560,18.122,20.528,20.997,19.028,18.153,18.028,19.341,18.840,19.247),
+      sp1=c(1,1,0,0,1,1,1,0,0,0), # 5 abundante
+      sp2=c(1,0,1,0,0,1,0,0,0,0), # 3 rara
+      sp3=c(1,0,0,1,1,0,1,0,0,0)) # 4 normal
+PAM.mix
+```
+
+La función '`PAM_indices`' calcula muchos índices desde la PAM. dentro de estos índices se encuentra la riqueza por sitio, el campo de dispersión de cada sitio y de cada especie, así como valores de covarianza entre sitios. Más adelante hago énfasis en los que nos importan para este análisis.
+
+La función '`prepare_PAM_CS`' por su parte, calcula a través de una iteración los valores "normalizados" tanto de la riqueza (Richness normalized) como de la dispersión (Dispersion field normalized), los cuales son necesarios para la formulación de ambos gráficos (Arita; Villalobos y Soberón)
+
+```{r Indices, eval=TRUE, include=TRUE}
+# ------------------------------------------------------------------------------
+# Analysis 
+## calculating all indices from the PAM. This is for visualization purposes.
+PAM.mix_i <- PAM_indices(PAM = PAM.mix, indices = "all", exclude_column = 1:2)
+
+## performing calculations to produce Christen-Soberon diagrams and their 
+## geographic representations. Depending on your computer this process could be 
+## time consuming (to make it faster you can use fewer 'randomization_iterations')
+PAM.mix_CS <- prepare_PAM_CS(PAM = PAM.mix, exclude_column = 1:2, significance_test = TRUE, 
+                         randomization_iterations = 500, CL = 0.05, 
+                         keep_randomizations = TRUE, parallel = TRUE)
+
+## the list produced contains all elements needed to produce the following plots
+```
+
+```{r .RData, eval=FALSE, include=TRUE}
+# saving results as RData - Guardar los datos en .RData, porque el objeto CS tarda mucho en construirse
+save(PAM.mix, PAM.mix_CS, file = "D:/Mauro/PAM_CS_MEX.RData")
+```
+
+Como ya los índices están creados en los objetos '`PAM.mix_CS`' y '`PAM.mix_i`', vamos a ver qué y cuales nos interesan:
+
+## Riqueza normalizada (Z.norm)
+
+Es la proporción de especies que ocupa un pixel, por ejemplo, si son 3 especies y en el sitio (pixel) solo hay 1 entonces es la proporción de especies respecto al total. Si un sitio tiene 1 especie de 3 (1/3) entonces la proporción es 0.333333. Si no tiene especies el vector no pone ningun valor, pero tendría valor de 0
+
+```{r}
+cbind(PAM.mix,
+      Z.norm=c(PAM.mix_CS$Richness_normalized,0,0,0))
+```
+
+## Dispersion field (DF)
+
+Es una medida de dispersión de las especies que ocupan un sitio, en el sentido de qué tantos sitios ocupan en el total de la matriz. Es decir, mide que tan dispersas (comunes o raras) son las especies que comparten un sitio. De manera que si las especies que ocupan un sitio son muy comunes en la matriz (tienen más cantidad de sitios ocupados), el valor de DF será más alto respecto a un sitio que contenga el mismo numero de especies, pero sus rangos de distribución sean mas reducidos (sean menos comunes en la matriz). Por lo tanto, el valor de dispersión tiene un valor aditivo porque cada especie que está ahí contribuye con su valor de dispersión al valor total.
+
+NOTA: En esta definición hay que tener en cuenta que [Villalobos et al. (2011)](https://www.sciencedirect.com/science/article/pii/S0006320712004223?via%3Dihub) y [Arita et al. (2008)](https://www.journals.uchicago.edu/doi/10.1086/590954) definen ese vector de dispersion total de las especies que ocupan un sitio como el *volume range*, pero [Soberón et al. (2021)](https://journals.ku.edu/jbi/article/view/14782/14007) y [Soberón y Cavner (2015)](https://journals.ku.edu/jbi/article/view/4801) lo definen como w.
+
+Por otro lado, el *volume range* (o *w* sensu [Soberón y Cavner (2015)](https://journals.ku.edu/jbi/article/view/4801)) es una medida del total de las distribuciones por sitio. De manera, que en este caso las 3 especies ocupan 12 sitios (pixeles) del total de pixeles; y si estas especies se encuentran en un sitio, entonces para ese sitio ese será la cantidad de sitios que ocupan esas especies (ver fila 1 [1,]) y si la especie ocupa solo 5 sitios, y esta sola en un pixel, entonces el valor del volumen será igual a 5 (ver fila 2 [2,]).
+
+```{r}
+PAM.mix[,-c(1,2)] %*% t(PAM.mix[,-c(1,2)]) %*% c(rep(1,10)) #w sensu soberon cavner 2015
+#Ensta multiplicación de matrices fue obtenida de la formula 1 de Soberón y Cavner (2015), en donde X*X^t*1sub(N)
+#esto es la multiplicación de la matriz por la matriz transpuesta por un vector de unos del tamaño del total de sitios (N) que en este caso es 10
+```
+
+Finalmente, el calculo que realiza [Soberón y Cavner (2015)](https://journals.ku.edu/jbi/article/view/4801) de la dispersión lo hacen restándo w por la riqueza que hay en ese sitio y lo dividen entre dos:
+
+```{r}
+cbind(PAM.mix, 
+      PAM.mix[,-c(1,2)] %*% t(PAM.mix[,-c(1,2)]) %*% c(rep(1,10)), #w sensu soberon cavner 2015
+      PAM.mix_i$Richness, #Z
+      ((PAM.mix[,-c(1,2)] %*% c(5,3,4)) - PAM.mix_i$Richness)/2) #DF
+```
+
+#### Dispersión normalizada (DF.norm)
+
+La dispersión normalizada entonces es ese valor de DF dividido por el numero de sitios en los que hay al menos una especie, es decir todos los sitios ocupados por 1 o más especies. En este caso es 7, porque hay 3 sitios vacíos.
+
+```{r}
+cbind(PAM.mix,
+      DF=PAM.mix_i$Dispersion_field,
+      Z.norm=c(PAM.mix_CS$Richness_normalized,0,0,0),
+      DF.norm=c(PAM.mix_CS$Dispersion_field_normalized,0,0,0))
+```
+
+#### Dispersión normalizada "corregido" (DF.norm/S)
+
+Este valor corresponde al eje y del plot propuesto por [Soberón et al. (2021)](https://journals.ku.edu/jbi/article/view/14782/14007) el cual divide el valor de Df.norm entre la riqueza por sitio
+
+```{r, eval=TRUE, include=TRUE}
+c(PAM.mix_CS$Dispersion_field_normalized,0,0,0) / PAM.mix_i$Richness
+#estos valores se pueden constatar en el eje Y del gráfico de soberón
+```
+
+NOTA: Quizá una de las modificaciones más grandes que [Soberón et al. (2021)](https://journals.ku.edu/jbi/article/view/14782/14007) realizó a lo propuesto por [Villalobos et al. (2011)](https://www.sciencedirect.com/science/article/pii/S0006320712004223?via%3Dihub) y [Arita et al. (2008)](https://www.journals.uchicago.edu/doi/10.1086/590954) es la transposición de los ejes de los gráficos, esto es que para [Villalobos et al. (2011)](https://www.sciencedirect.com/science/article/pii/S0006320712004223?via%3Dihub) y [Arita et al. (2008)](https://www.journals.uchicago.edu/doi/10.1086/590954) el valor de DF corresponde al eje x, mientras que para [Soberón et al. (2021)](https://journals.ku.edu/jbi/article/view/14782/14007) corresponde al eje Y, el cual realizan una división por la riqueza de cada sitio como se vio en la sección anterior.
+
+Para la construcción del eje x del grafico de Villalobos 2011 (funcion `rdp`). Se divide el *volume range* (w sensu Soberón) de las especies que ocupan un sitio. El volume range es la totalidad de la distribución de las especies que estan ahí, de manera que es una medida de la "dispersión" de esas especies y luego, se divide por la riqueza, de manera que la relación de ambos valores permite la interaccion de la riqueza y la dispersión. Si hay una concentración de pocas especies y son raras tendra un valor más pequeño, y en contraste si hay la misma cantidad de especies pero de amplia distribución el valor será mayor. Este valor, dado que es la media proporcional por sitio se divide por la cantidad de sitios (10).
+
+```{r}
+(PAM.mix[,-c(1,2)] %*% c(5,3,4)) / PAM.mix_i$Richness /10
+
+rdp(PAM.mix[, -(1:2)], view = 1, limits = 1)
+title(main = "Villalobos y Arita range-diversity plot")
+```
+
+## Simple Christen Soberon plot 
+
+A continuación se encuentra el plot propuesto por [Soberón et al. (2021)](https://journals.ku.edu/jbi/article/view/14782/14007) con las modificaciones previamente analizadas
+
+```{r}
+biosurvey::plot_PAM_CS(PAM.mix_CS, main = "Soberon range-diversity plot", col_all ="black")
+```

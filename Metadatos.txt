@@ -5,3 +5,5 @@
 "Script_down_spp_DD.R" = Script que contiene la informción para descargar del GBIF y tratar los datos
 "Script_tablas_crudas_DD.R" = Script para limpiar los datos
 "variables_msc_DD.R" = Script de analisis de variables
+"RD_function_FV" = Funciones para armar los plots de rango diversidad
+"RDplots_functions_FV" = Funciones para los plots de rango diversidad

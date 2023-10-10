@@ -2,22 +2,18 @@
 ##instalación de KUENM
 
 # Installing and loading packages
-if(!require(devtools)){
-  install.packages("devtools")
-}
-
-if(!require(kuenm)){
-  devtools::install_github("marlonecobos/kuenm")
-}
+# if(!require(devtools)){
+#   install.packages("devtools")
+# }
+# 
+# if(!require(kuenm)){
+#   devtools::install_github("marlonecobos/kuenm")
+# }
 
 library(kuenm)
-install.packages("betareg")
+#install.packages("betareg")
 #sass, hier.part
 
-
-setwd("D:/Maestria_DD/spp. records_DD/specialists_DD/spec. shapes_DD/M_spec.vbles_DD/Aphelocoma woodhouseii_M")
-
-kuenm_start("A_wood_kuenm")
 
 # Bucle KUENM -------------------------------------------------------------
 
