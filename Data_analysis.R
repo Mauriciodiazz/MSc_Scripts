@@ -289,6 +289,7 @@ plot(model1)
 
 
 #probar diferentes configuraciones de los variogramas
+#nugget se refiere a una varianza
 model2 <- gls(z~slope*cat, 
               correlation = corGaus(form = ~y+x, nugget = TRUE), 
               data = datos_z, 
