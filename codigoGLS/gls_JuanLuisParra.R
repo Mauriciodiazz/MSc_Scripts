@@ -42,11 +42,8 @@ moranI <- Moran.I(x=datos_z$y, weight=dists.inv) # p.value significativo indica 
 moranI
 
 #Spatial correlation correction with GLS
-#function using the correlation argument. We fit our model
-#using different correlation structures, and we then use AIC to choose the best model. Note
-#that, as with the Variogram function, we need two columns in our dataframe containing the 
-#coordinates of our sites. The nugget argument allows us
-#to choose wether we want a nugget effect (intercept) or not.
+#function using the correlation argument. We fit our model using different correlation structures, and we then use AIC to choose the best model. 
+#Note that, as with the Variogram function, we need two columns in our dataframe containing the coordinates of our sites. The nugget argument allows us to choose wether we want a nugget effect (intercept) or not.
 
 model1 <- gls(log(y)~x1+x2+x3+x4, # transformamos "y" con log para garantizar normalidad 
                correlation = corExp(form = ~coordy+coordx, nugget = TRUE), 

@@ -1134,14 +1134,4 @@ dev.off()
 # ------------------------------------------------------------------------------
 
 
-library(terra)
-agr<-rast("F:/Maestria_DD/Shapes_MSc_DD/borrar/Agricultura_S7.tif")
-slope<-rast("F:/Maestria_DD/Shapes_MSc_DD/WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
-
-agr |> 
-  as.points()
-extract(agr,slope)
-
-
-
 

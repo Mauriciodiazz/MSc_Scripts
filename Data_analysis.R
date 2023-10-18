@@ -204,6 +204,153 @@ levels(factor(Z.slp.cats$ecoreg)) |>
   length()
 #Si hay una relación entre la pendiente y las ecoregiones
 
+# problema: Para hacer los GLS y evaluar autocorrelación espacial necesito crear una matriz de distancias entre los pixeles, además, parar ealizar el índice de moran es necesario hacerlas. Por lo tanto, para facilidad en los análisis voy a reescalar el mapa de riqueza a 5km.
+
+
+# Mapa de riqueza con LetsR -----------------------------------------------
+#Direcciones de los rasters de distribución potencial
+ras.dir<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/MB_Mex/", full.names = T, pattern =".tif$")
+#Lista de nombres de los archivos
+ras.list<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/MB_Mex/", full.names = F, pattern =".tif$") |> 
+  substr(1,7) #Esto solo elimina los caracteres .tif
+
+
+# Crear PAM y raster de riqueza con Lets R a partir de rasters ------------
+library(tidyverse)
+library(letsR) # lets.presab.points
+
+# En este bucle lo que hago es abrir los rasters, los reescalo si es necesario y luego los convierto en puntos, de manera que el centroide del pixel contiene valores de 0 y 1. Esto lo guardo en una lista y cada objeto de la lista contiene la lista de presencias (valores de 1 de los rasters de distribución potencial)
+
+spd.list<-list()
+for(i in 1:length(ras.list)){
+  spd.list[[i]]<-rast(ras.dir[i]) |> 
+    #hay que reescalar el raster? a 30km = 0.4166667
+    #  aggregate(fact=10, fun= 'modal') |> 
+    #convierto en un df
+    as.data.frame(xy=T) |> 
+    #le pongo una columna con el nombre de la spp
+    mutate(spp=ras.list[i]) |> 
+    #selecciono solo los valores de "presencia"
+    filter(.data[[names(rast(ras.dir[i]))]]==1) |> 
+    #elimino la columna con valores de 1
+    dplyr::select(-3)
+  names(spd.list)[i]<-ras.list[i]
+  print(ras.list[i])
+}
+
+## convierto la lista en un DF y lo guardo para optimizar tiempo
+spd.list.join<- as.data.frame(do.call(rbind, spd.list), row.names = NULL) 
+# write.table(spd.list.join,"F:/Maestria_DD/spp.records_DD/specialists_DD/temporales/spp_PAM.txt", sep="\t", dec=".")
+head(spd.list.join)
+
+# Cargo la tabla para optimizar tiempo
+spd.list.join<- read.table("./outputs/tablas/spp_PAM.txt",sep="\t", dec=".", header=T)
+head(spd.list.join)
+
+# Crear la PAM a partir de los puntos de presencia a una resolucion de 10km
+PAM<-lets.presab.points(xy= as.matrix(spd.list.join[,1:2]),
+                        species= spd.list.join$spp,
+                        xmn = -120,
+                        xmx = -85,
+                        ymn = 14,
+                        ymx = 32, #10km 0.08333 / 30km 0.24999 /50km 0.41665
+                        resol = 0.08333) 
+
+x11()
+plot(PAM)
+summary(PAM)
+PAM.raster<-PAM$Richness_Raster
+
+# Cargar y remuestrear el raster de pendiente -------------------------------
+
+slope<-rast("./WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
+slope.3<-resample(slope, PAM.raster, method="bilinear")
+
+
+# Cargar y remuestrear las áreas conservadas y transformadas --------------
+
+inegivii<-rast("./INEGI/Cambios/INEGI_VII_TC.tif")
+inegivii.3<-resample(inegivii, PAM.raster, method="near")
+
+
+# Extraer pendiente e inegi vii para cada pix de riqueza --------
+z.slp<-extract(c(slope.3,inegivii.3, PAM.raster), 
+               as.points(PAM.raster), xy=T) |> 
+  na.omit()
+
+# ordenar
+z.slp<-z.slp[,c(5,6,4,2,3)]
+names(z.slp)<-c("x","y","z","slope","cat")
+names(z.slp)
+z.slp$cat<-as.character(z.slp$cat)
+str(z.slp)
+levels(factor(z.slp$cat))
+
+# Evaluando estructura espacial -------------------------------------------
+
+# semivariograma
+distancias<-dist(z.slp[,c(1,2)])
+summary(distancias)
+head(z.slp)
+
+##################################################
+### script de Spatial Filters curso de macro
+
+#Agregando el “espacio” al análisis de la riqueza
+
+#Cargar los siguientes paquetes:
+library(letsR)
+library(sf)
+library(terra)
+library(ape)
+library(vegan)
+
+#Ajustar el modelo global (OLS) entre la riqueza de aves y las variables ambientales
+aves.ras1.lm <- lm(z ~ slope*cat, data = z.slp)
+summary(aves.ras1.lm)
+
+#Checar la autocorrelación espacial en los residuos del modelo
+
+#Necesitamos crear una matriz de distancias geográficas entre los sitios/celdas
+aves.ras1.coords.dist <- lets.distmat(as.matrix(z.slp[, c(1, 2)]))
+# Ahora sí podemos calcular el I de Moran para diferentes clases de distancia y ver el correlograma resultante
+aves.ras1.lm.moran <- lets.correl(residuals(aves.ras1.lm), aves.ras1.coords.dist, 10)
+
+# hay estructura espacial en los residuales!
+
+#Y hay autocorrelación espacial dentro de mi variable?
+
+# Spatial correlation test - Moran's Index --------------------------------
+library(gstat)
+library(lattice)
+library(nlme)
+library(MuMIn)
+library(ape)
+library(vegan)
+
+#Moran's Test
+dists <- as.matrix(dist(cbind(z.slp$x, z.slp$y))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
+dists.inv <- 1/dists #inverso de esa distancia
+diag(dists.inv) <- 0 #la diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
+dists.inv[1:5, 1:5]
+##
+moranI <- Moran.I(x=z.slp$z, weight=dists.inv) # p.value significativo indica fuerte autocorrelacion espacial
+#La matriz de pesos es la distancia euclidiana que hay entre cada ímtp
+moranI
+
+#hay normalidad?
+library(tidyverse)
+# test of normality
+# Shapiro-Wilk's test
+format(shapiro.test(z.slp|>  # verificamos normalidad de la variable respuesta
+                      sample_n(size=5000) |> 
+                      select(z) |> 
+                      pull())$p.value, scientific = F)
+
+hist(z.slp$z) # No hay normalidad en la variable respuesta
+
+
+#ajustar modelos gls
 #####################################################
 #modelos gls
 
@@ -218,124 +365,51 @@ library(vegan)
 # Direstorio de trabajo
 #setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) 
 
-# Datos
-#data <- read.csv("data.csv")
-datos_z<- Z.slp.cats |> 
-  sample_n(size=500)
-names(data)
-data
-
 # Normalized variables
-# z-transform on our data (mean-centering and dividing by one standard deviation)
-datos_z <- decostand(data[,c(4:7)], "standardize") # indicamos las variables que vamos a transformar (var explicativas) esto hace lo mismo que la funcion scale
-datos_z <- cbind(data[,c(1:3,8)], datos_z) # unimos el resto de variales
-head(datos_z)
+# z-transform on our data (mean-centering and dividing by one standard deviation) como tengo solo una variable continua, no es necesario estandarizar
+# datos_z <- decostand(data[,c(4:7)], "standardize") # indicamos las variables que vamos a transformar (var explicativas) esto hace lo mismo que la funcion scale
+# datos_z <- cbind(data[,c(1:3,8)], datos_z) # unimos el resto de variales
+# head(datos_z)
 
-# test of normality
-# Shapiro-Wilk's test
-shapiro.test(datos_z$z) # verificamos normalidad de la variable respuesta - No hay normalidad en la variable respuesta
-format(shapiro.test(datos_z$y)$p.value, scientific = F)
-hist(datos_z$y)
-
-##################################################
-#Spatial correlation test
-#Moran's Test
-dists <- as.matrix(dist(cbind(datos_z$x, datos_z$y))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
-dists.inv <- 1/dists #inverso de esa distancia
-diag(dists.inv) <- 0 #la diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
-dists.inv[1:5, 1:5]
-##
-moranI <- Moran.I(x=datos_z$y, weight=dists.inv) # p.value significativo indica fuerte autocorrelacion espacial
-#La matriz de pesos es la distancia euclidiana que hay entre cada ímtp
-moranI
-
+# Ajustar un gls
 #Spatial correlation correction with GLS
-#function using the correlation argument. We fit our model
-#using different correlation structures, and we then use AIC to choose the best model. Note
-#that, as with the Variogram function, we need two columns in our dataframe containing the 
-#coordinates of our sites. The nugget argument allows us
-#to choose wether we want a nugget effect (intercept) or not.
+#function using the correlation argument. We fit our model using different correlation structures, and we then use AIC to choose the best model. 
+#Note that, as with the Variogram function, we need two columns in our dataframe containing the coordinates of our sites. The nugget argument allows us to choose wether we want a nugget effect (intercept) or not.
 
-#¿Es necesario usar un gls en vez de un lm?
-## GLM
-model1.glm = glm(z ~ slope*cat,
-              data = Z.slp.cats,
-              family = neg.bin(theta=log(var(Z.slp.cats$z)/mean(Z.slp.cats$z)))) 
-# probando autocorrelacion espacial del modelo
-#Moran's Test
-dists <- as.matrix(dist(cbind(datos_z$x, datos_z$y))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
-dists.inv <- 1/as.matrix(dist(cbind(Z.slp.cats$x, Z.slp.cats$y))) #inverso de esa distancia
-diag(dists.inv) <- 0 #la diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
-dists.inv[1:5, 1:5]
-##
-moranI <- Moran.I(x=datos_z$y, weight=dists.inv) # p.value significativo indica fuerte autocorrelacion espacial
-#La matriz de pesos es la distancia euclidiana que hay entre cada ímtp
-moranI
+# transformamos "z" con log para garantizar normalidad 
 
-## GLS
-model1 <- gls(z~slope*cat, # transformamos "y" con log para garantizar normalidad 
+names(z.slp)
+model1.lm <- gls(log(z+1)~slope*cat,data = z.slp)
+
+which(is.na(z.slp))
+summary(z.slp)
+z.slp$cat2<-z.slp$cat
+z.slp[which(z.slp$cat2==1),6]<-"C"
+z.slp[which(z.slp$cat2==2),6]<-"T"
+
+model1 <- gls(log(z+1)~slope*cat, 
               correlation = corExp(form = ~y+x, nugget = TRUE), 
-              data = datos_z,
+              data = z.slp,
               control = glsControl(opt = "optim"))
-## LM
-model1.lm <- gls(z~slope*cat, 
-              data = datos_z)
-
-AICc(model1, model1.lm) #Si es necesario un gls
-#pero surge un problema y es que gls es una extensión de los modelos lineales (lm) que asumen que los residuales se comportan de manera normal
-model1$residuals |> 
-  hist()
-plot(model1)
 
 
-#probar diferentes configuraciones de los variogramas
-#nugget se refiere a una varianza
-model2 <- gls(z~slope*cat, 
+model2 <- gls(log(z+1)~slope*cat, 
               correlation = corGaus(form = ~y+x, nugget = TRUE), 
-              data = datos_z, 
+              data = z.slp, 
               control = glsControl(opt = "optim"))
 
-model3 <- gls(z~slope*cat, 
+model3 <- gls(log(z+1)~slope*cat, 
               correlation = corSpher(form = ~y+x, nugget = TRUE), 
-              data = datos_z,
+              data = z.slp,
               control = glsControl(opt = "optim"))
 
-model4 <- gls(z~slope*cat, 
+model4 <- gls(log(z+1)~slope*cat, 
               correlation = corLin(form = ~y+x, nugget = TRUE), 
-              data = datos_z,
+              data = z.slp,
               control = glsControl(opt = "optim"))
 
-model5 <- gls(z~slope*cat, 
+model5 <- gls(log(z+1)~slope*cat, 
               correlation = corRatio(form = ~y+x, nugget = TRUE), 
-              data = datos_z,
+              data = z.slp,
               control = glsControl(opt = "optim"))
-
-#Check what model has best AIC
-AICc(model1, model2, model3, model4, model5) |> 
-  as.data.frame() |> 
-  arrange(AICc)
-#best model: 1
-model1.log <- gls(log(z)~slope*cat, # transformamos "y" con log para garantizar normalidad 
-              correlation = corExp(form = ~y+x, nugget = TRUE), 
-              data = datos_z,
-              control = glsControl(opt = "optim"))
-AICc(model1, model1.log) |> 
-  as.data.frame() |> 
-  arrange(AICc)
-
-model1.log$residuals |> 
-  hist()
-model1$residuals |> 
-  hist()
-
-#summary best models
-summary(model4)
-summary(model1)
-
-model1$residuals |> 
-  hist()
-
-
-# ---- FIN
-
 
