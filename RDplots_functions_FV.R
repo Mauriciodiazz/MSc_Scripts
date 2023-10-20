@@ -55,7 +55,7 @@ species.RDplot<- function(pamRD) {
 }
 
 
-#### by SITES ####
+#### by SITES ###
   
 sites.RDplot<- function(pamRD) {
   

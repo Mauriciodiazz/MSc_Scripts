@@ -179,13 +179,15 @@ library(terra)
 # Preparación de voctor de color
 slope<-rast("F:/Maestria_DD/Shapes_MSc_DD/WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
 cat<-rast("./INEGI/Cambios/INEGI_VII_TC.tif")
+byclass<-rast("./outputs/temps/by_class_col.tif")
 cords.pam<-PAM.mix[,1:2]
 
 slope2<-resample(slope, PAM$Richness_Raster, method="bilinear")
 cat2<-resample(cat, PAM$Richness_Raster, method="near")
 
+
 #1. Extraer valores de pendiente
-xy.slope<-terra::extract(c(slope2,cat2), PAM.mix[,1:2])
+xy.slope<-terra::extract(c(slope2,cat2,byclass), PAM.mix[,1:2])
 head(xy.slope)
 #2. Agregar columna para unir
 xy.slope2<- xy.slope |>
@@ -206,6 +208,21 @@ xy.pam<-PAM.mix[,1:2] |>
 xy.merge<- inner_join(xy.pam, xy.slope2, by="lonlat")
 head(xy.merge)
 cols<-xy.merge$cols
+slp<-xy.merge$slope_mx_g
+#clasificacion de color de clasificacion de mapa bivariado
+by_class_col<-xy.merge$by_class_col
+by_class_col[which(by_class_col==1)]<-"#E7E7E7"
+by_class_col[which(by_class_col==2)]<-"#9ed4de"
+by_class_col[which(by_class_col==3)]<-"#1bacbe"
+by_class_col[which(by_class_col==4)]<-"#f5acac"
+by_class_col[which(by_class_col==5)]<-"#b29ea5"
+by_class_col[which(by_class_col==6)]<-"#527f8d"
+by_class_col[which(by_class_col==7)]<-"#e35959"
+by_class_col[which(by_class_col==8)]<-"#ac5255"
+by_class_col[which(by_class_col==9)]<-"#5d3f47"
+by_class_col[which(is.na(by_class_col))]<-"#000000"
+
+
 #color de las categorias
 cat.col<-xy.merge$INEGI_VII_TC
 cat.col[which(cat.col==1)]<-"#248f5d"
@@ -366,7 +383,7 @@ sites.RDplot<- function(pamRD, cols) {
   
   #RD plot
   par(mar= c(5, 5, 1, 1))
-  plot(SiteRange/Quadrats, SpeciesRichness/Species, xlim = c(0,1), ylim = c(0,1), xlab = "Mean proportional per-site range", ylab = "Proportional species richness", pch=21,bg=cols,cex=1, col=cols)
+  plot(SiteRange/Quadrats, SpeciesRichness/Species, xlim = c(0,1), ylim = c(0,1), xlab = "Mean proportional per-site range", ylab = "Proportional species richness", pch=21,bg=cols,cex=1.2, col=alpha(cols,1))
   
   
   # #ISOCOVARIANCE LINES
@@ -378,27 +395,27 @@ sites.RDplot<- function(pamRD, cols) {
   # for(j in c(-.01, -.05, -.1)) {
   #   lines(y, j/(y- RangeMean/Quadrats), lwd = 2, col = "pink")
   # }
-  # 
-  # 
+  #
+  #
   x<- seq(RangeMin/Quadrats, RangeMean/Quadrats, length = 100)
   lines(x, (RangeMax-RangeMean)/Quadrats/(RangeMax/Quadrats-x), lwd = 2)
   y<- seq(RangeMean/Quadrats, RangeMax/Quadrats, length = 100)
   lines(y, (RangeMean-RangeMin)/Quadrats/(y-RangeMin/Quadrats), lwd = 2)
   segments(RangeMean/Quadrats, 0, RangeMean/Quadrats, 1, lty = 3, lwd = 1.5)
-  
+
   #Top histogram
   par(mar=c(0, 5, 1, 1))
-  barplot(xhist$counts, axes= FALSE, ylim = c(0, topx), space =0,col=cols)
-  
+  barplot(xhist$counts, axes= FALSE, ylim = c(0, topx), space =0)
+
   #Side histogram
   par(mar=c(5, 0, 1, 1))
-  barplot(yhist$counts, axes = FALSE, space = 0, horiz = TRUE,col=cols)
-  
+  barplot(yhist$counts, axes = FALSE, space = 0, horiz = TRUE)
+
   par(def.par)
 }
 
-RangeDiversity(t(PAM$Presence_and_Absence_Matrix[,-c(1,2)])) |> 
-  sites.RDplot(cols)
+RangeDiversity(t(PAM.mix[,-c(1,2)])) |> 
+  sites.RDplot(by_class_col)
 
 # RD plot color=categoria ---------------------------------------------
 
@@ -408,5 +425,6 @@ RangeDiversity(t(PAM$Presence_and_Absence_Matrix[,-c(1,2)])) |>
 # Simple Christen Soberon plot   ------------------------------------------
 par(cex = 0.8)
 plot_PAM_CS(PAM.mix_CS, main = "Range-diversity plot", col_all = cols)
+
 
 #Fin del script

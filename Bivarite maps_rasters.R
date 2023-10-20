@@ -15,12 +15,12 @@ slp<-rast("./WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
 
 # Raster de riqueza -------------------------------------------------------
 #cargar matriz PAM
-spd.list.join<- read.table("./outputs/tablas/spp_PAM.txt",sep="\t", dec=".", header=T)
-head(spd.list.join)
+PAM.list.join<- read.table("./outputs/tablas/spp_PAM.txt",sep="\t", dec=".", header=T)
+head(PAM.list.join)
 
 # Crear la PAM a partir de los puntos de presencia a una resolucion de 10km
-PAM<-lets.presab.points(xy= as.matrix(spd.list.join[,1:2]),
-                        species= spd.list.join$spp,
+PAM<-lets.presab.points(xy= as.matrix(PAM.list.join[,1:2]),
+                        species= PAM.list.join$spp,
                         xmn = -120,
                         xmx = -85,
                         ymn = 14,
@@ -45,6 +45,7 @@ riq.vect <- riq |>
 riqxslp<-st_join(slp.vec, riq.vect)
 names(riqxslp)<- c("slope", "z", "geometry")
 
+plot(riqxslp)
 
 data <- bi_class(riqxslp, x = z, y = slope, style = "quantile", dim = 3)
 #data <- bi_class(stl_race_income, x = pctWhite, y = medInc, style = "quantile", dim = 3)

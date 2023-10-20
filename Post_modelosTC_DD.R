@@ -1,10 +1,9 @@
 #En este script voy a hacer todo lo que lleva el postprocesamiento de los modelos   
 
-#-------------------------------------------------------------------------------------------------- # 
+
 
 # ------------------------------------- Binarización de los modelos --------------------------------
 
-#-------------------------------------------------------------------------------------------------- # 
 
 mods.dir<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.vbles_DD/", full.names = T) #modelos direcciones 
 spp.mod.list<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.vbles_DD/", full.names = F)
@@ -139,12 +138,8 @@ bin.list.mx |>
   sum(na.rm=T) |> 
   writeRaster("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/Riqueza/Riqueza_MX.tif", overwrite=T) #|> plot()
 
-#-------------------------------------------------------------------------------------------------------------- # 
 
 # ----------------------------------------------- T y C S7 ----------------------------------------------------  
-
-#-------------------------------------------------------------------------------------------------------------- #
-
 # Corte a categorias ------------------------------------------------------
 
 # Direcciones de los shapes de cambios
@@ -250,7 +245,6 @@ list.spp.pix.P<- as.data.frame(do.call(rbind, list.spp.pix))
 for (y in 1:56) {
   list.spp.pix.P[which(list.spp.pix.P[,1]==y),1] <- str_sub(list.files(cat.dir.TC[1]),1,-7)[y]
 }
-
 
 
 # --------------------------------- Familia y ordenes  ---------------------------------------
@@ -427,7 +421,7 @@ Z.slp.cats<-Z.slp.cats |>
   na.omit() # |> write.table("./outputs/Z.slp.cats.txt", sep = "\t", dec=".", row.names = F)
 summary(Z.slp.cats) #verifico
 
-Z.slp.cats<- read.table("./outputs/tablas/Z.slp.cats.txt", sep = "\t", dec=".", header=T)
+Z.slp.cats<- read.table("F:/Maestria_DD/Shapes_MSc_DD/outputs/tablas/Z.slp.cats.txt", sep = "\t", dec=".", header=T)
 head(Z.slp.cats)
 
 #Cuál es la mediana de la pendiente por categoria?
@@ -441,11 +435,15 @@ Z.slp.cats |>
 
 # Slope -------------------------------------------------------------------
 #plot total
-ggplot(Z.slp.cats, aes(x=slope, fill=cat, color=cat)) + 
+slp_dens_tot<- 
+  ggplot(Z.slp.cats, aes(x=slope, fill=cat, color=cat)) + 
   geom_density(alpha=0.2, linewidth=1) +
   scale_fill_manual(values=c("#248f5d","#f56038"),labels=c("Conserved", "Transformed")) + 
   scale_color_manual(values=c("#248f5d","#f56038"), labels=c("Conserved", "Transformed")) +
-  labs(x="Terrain slope", y="Density", fill="Categories", color="Categories")
+  labs(x="Terrain slope", y="Density", fill="Categories", color="Categories") +
+  theme_classic() +
+  theme(legend.position="none")
+
 
 # ggsave(filename = "./outputs/slp_dens_tot.png",
 #          width = 15,
@@ -453,6 +451,8 @@ ggplot(Z.slp.cats, aes(x=slope, fill=cat, color=cat)) +
 #          scale=2,
 #          units ="cm",
 #          dpi = 200)
+
+
 
 #por cada uno
 f_labels <- data.frame(cat = c("C", "T"), label = c("A", "B"))
@@ -478,7 +478,7 @@ ggplot(Z.slp.cats, aes(x=slope, fill=cat, color=cat)) +
 #          dpi = 200)
 
 
-# Riqueza -----------------------------------------------------------------
+# Densidad riqueza -----------------------------------------------------------------
 #plot total
 ggplot(Z.slp.cats, aes(x=z, fill=cat, color=cat)) + 
   geom_density(alpha=0.2, linewidth=1) +
@@ -493,17 +493,17 @@ ggplot(Z.slp.cats, aes(x=z, fill=cat, color=cat)) +
 #          units ="cm",
 #          dpi = 200)
 
-#por cada uno
+#Densidad por cada uno
 f_labels
-#f_Z<- #esto es para el plot doble
+f_Z<- #esto es para el plot doble
 ggplot(Z.slp.cats, aes(x=z, fill=cat, color=cat)) + 
   geom_density(alpha=0.2, linewidth=1) +
   scale_fill_manual(values=c("#248f5d","#f56038")) + 
   scale_color_manual(values=c("#248f5d","#f56038")) +
-  facet_wrap("cat", labeller = labeller(cat=c(C= "Conserved",
-                                              T= "Transformed"))) +
+  # facet_wrap("cat", labeller = labeller(cat=c(C= "Conserved",
+  #                                             T= "Transformed"))) +
   theme_classic()+
-  labs(x="Richness", y="Density")+
+  labs(x="Species richness", y="Density")+
   theme(legend.position="none",
         strip.text =  element_text(size=10, face="bold")) 
 #agregar labels (A - B)
@@ -530,6 +530,43 @@ ggplot(Z.slp.cats, aes(x=z, fill=cat, color=cat)) +
 # Plots de Riqueza vs pendiente --------------------------------------------------------
 
 library(janitor)
+library(ggridges)
+#grafico total 
+# densidades
+Z.slp.cats |> 
+  ggplot(aes(y=factor(z), x=slope, width = after_stat(density))) + 
+  geom_density_ridges(scale = 0.1)+
+  stat_density_ridges(quantile_lines = TRUE, quantiles = 0.5)+ #plotee la mediana dentro de cada uno
+  geom_vline(xintercept= 1.585008,
+              color="red") +
+  labs(y="Species richness", x="Terrain slope") +
+  theme_classic()
+
+# ggsave(filename = "./outputs/slp_bxplt2.png",
+#        width = 15,
+#        height = 10, #alto
+#        scale=2,
+#        units ="cm",
+#        dpi = 200)
+
+# boxplot
+Z.slp.cats |> 
+  ggplot(aes(x=factor(z), y=slope)) + 
+  geom_boxplot() +
+  geom_hline(yintercept= 1.585008,
+              color="red") +
+  labs(x="Species richness", y="Terrain slope") +
+  theme_classic()
+  theme(legend.position="none",
+        strip.text =  element_text(size=10, face="bold"))
+
+ggsave(filename = "./outputs/slp_bxplt.png",
+       width = 15,
+       height = 10, #alto
+       scale=2,
+       units ="cm",
+       dpi = 200)
+
 ggplot(Z.slp.cats, aes(x=factor(z), y=slope)) + 
   geom_boxplot() +
   # group_by(nom, pc.cats) |> 
@@ -541,7 +578,7 @@ ggplot(Z.slp.cats, aes(x=factor(z), y=slope)) +
              color="red") +
   facet_wrap("cat", labeller = labeller(cat=c(C= "Conserved",
                                               T="Transformed")), nrow=2, ncol=1) +
-  labs(x="Richness", y="Terrain slope") +
+  labs(x="Species richness", y="Terrain slope") +
   theme_classic()+
   theme(legend.position="none",
         strip.text =  element_text(size=10, face="bold"))
@@ -554,19 +591,34 @@ ggplot(Z.slp.cats, aes(x=factor(z), y=slope)) +
 #        dpi = 200)
 
 
-# barplot -----------------------------------------------------------------
-Z.slp.cats |> 
+# mediana de la pendiente por cat -----------------------------------------------------------------
+slp_z_med<-
+  Z.slp.cats |> 
   group_by(cat, z) |> 
   summarise(median= median(slope)) |> 
   ggplot(aes(x=z, y=median, color=cat))+
-  geom_line() +
-  facet_wrap("cat", labeller = labeller(cat=c(C= "Conserved",
-                                              T= "Transformed")))+
-  scale_color_manual(values=c("#248f5d","#f56038")) +
-  labs(x="Richness", y="Terrain slope (median)", fill="Categories", color="Categories") +
-  theme(legend.position = "none",
-        strip.text =  element_text(size=10, face="bold"),
-        strip.background = element_rect(color = "black", fill="white"))
+  geom_ribbon(aes(ymin = min(median),ymax = median, fill=cat), alpha=0.5)+
+  geom_line(aes(color=cat)) + 
+  geom_point(aes(color=cat))+
+  # geom_line() +
+  # facet_wrap("cat", labeller = labeller(cat=c(C= "Conserved",
+  #                                             T= "Transformed")))+
+  scale_fill_manual(values=c("#248f5d","#f56038"), labels = c("Conserved","Transformed"))+
+  scale_color_manual(values=c("#248f5d","#f56038"), labels = c("Conserved","Transformed"))+
+  labs(x="Species richness", y="Terrain slope (median)", fill="Categories", color="Categories", fill="Categories") +
+  theme(strip.text =  element_text(size=10, face="bold"),
+        strip.background = element_rect(color = "black", fill="white"))+
+  theme_classic()
+
+#library(patchwork)
+((slp_dens_tot/f_Z)|slp_z_med )+ plot_annotation(tag_levels = 'A')
+
+ggsave(filename = "./outputs/slp_merge.png",
+       width = 10,
+       height = 10, #alto
+       scale=2,
+       units ="cm",
+       dpi = 200)
 
 #Las especies se concentran en valores más altos de pendiente
 
@@ -638,7 +690,6 @@ spp_slp.join<-spp_slp |>
         by= "spp") |> 
   mutate(name=str_replace(name,"_"," "))
 
-fct_reorder(str_replace(name,"_", " "), value,.desc=F)
 spp_slp.join |>
 #  sample_n(100) |> 
   ggplot(aes(x=fct_reorder(name, slope, .desc=F, .na_rm = TRUE),y=slope))+
@@ -646,7 +697,7 @@ spp_slp.join |>
   theme_classic()+
   theme(axis.text.x = element_text(angle=90, vjust=0.5, hjust=1),
         axis.title.x = element_blank())+
-  geom_hline(yintercept = median(spp_slp.join$slope, na.rm = T), color="red") + 
+  geom_hline(yintercept = 1.585008, color="red") + 
   labs(y="Terrain slope")
 
 # ggsave(filename = "./outputs/slp_spp_bxplt.png",
@@ -682,17 +733,13 @@ spp_slp.join |>
 #        dpi = 200)
 
 #cuantas especies se distribuyen debajo de la mediana de pendiente?
-median(spp_slp.join$slope, na.rm = T) #3.276331
+#mediana de la pendiente de mexico
+mx.slope |> 
+  as.data.frame() |> 
+  summarise(median=median(slope_mx_g),
+            mean=mean(slope_mx_g),
+            sd=sd(slope_mx_g)) #1.585008
 
-spp_slp.join |> 
-#  sample_n(size=100) |> 
-  group_by(name) |> 
-#  filter(endemismo=="Q") |> 
-  summarise(median=median(slope, na.rm=T),
-            sd=sd(slope, na.rm=T)) |> 
-  filter(median<3.276331) |> 
-  arrange(median) |> 
-  print(n=60)
 
 # cuál es el valor de pendiente de cada especie en cada categoría?
 spp_slp.join |> 
@@ -711,13 +758,24 @@ spp_slp.join |>
 # 14 especies se distribuyeron en zonas más empinadas en las áreas transformadas
   14*100/56
 
+
+  spp_slp.join |> 
+    #  sample_n(size=100) |> 
+    group_by(name) |> 
+    filter(endemismo=="Q") |> 
+    summarise(median=median(slope, na.rm=T),
+              sd=sd(slope, na.rm=T)) |> 
+    filter(median<1.585008) |> 
+    arrange(median) |> 
+    print(n=60)
+  
 #35 especies se encuentran en promedio por encima de la mediana de la pendiente y 21 especies se encuentran en promedio debajo de la mediana de la pendiente del terreno
-35*100/56
-21*100/56
+42*100/56
+14*100/56
 
 #3 especies endémicas por debajo de la mediana
-3*100/18
-15*100/18
+1*100/18
+17*100/18
 
 
 # Riqueza facet ordenado por slope ----------------------------------------
@@ -739,12 +797,12 @@ spp_slp.join |>
         axis.title.x = element_blank()) +
   scale_fill_manual(values=c("#248f5d","#f56038"), labels = c("Conserved","Transformed"))
 
-ggsave(filename = "./outputs/slp_spp_bxplt_facet.png",
-       width = 15,
-       height = 10, #alto
-       scale=2,
-       units ="cm",
-       dpi = 200)
+# ggsave(filename = "./outputs/slp_spp_bxplt_facet.png",
+#        width = 15,
+#        height = 10, #alto
+#        scale=2,
+#        units ="cm",
+#        dpi = 200)
 
 
 # Mapas bivariados --------------------------------------------------------
