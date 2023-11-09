@@ -264,8 +264,6 @@ for (x in 1:length(spp.list)) {
   }
 print(spp.list[x])}
 
-
-
 # Preparación archivos de especies ----------------------------------------
 
 #Tres archivos csv

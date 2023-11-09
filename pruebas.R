@@ -190,3 +190,134 @@ RangeDiversity(PAM) |>
 
 sum(PAM)
 1/5/9
+
+
+
+library(terra)
+library(tidyverse)
+area<-rast("./WorldClim_30s/wc2.1_30s_elev/Area_slp_cor_AG/AC_buf.tif")
+slp<-rast("WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
+
+#1. reproyectar capa de area
+areawgs<-project(area, slp, method="bilinear")
+
+#2. extraer valores de pendiente y area
+slp.area<-extract(areawgs, as.points(slp), bind=T) |> 
+  as.data.frame()
+
+slp.area |> 
+  na.omit() |> 
+ # sample_n(size=100) |> 
+  mutate(AC_buf=AC_buf/1000000, #a km cuadrado
+         slope_clas=cut(slope_mx_g , breaks = 0:31, labels = 0:30)) |> 
+  group_by(slope_clas) |> 
+  summarise(sum=sum(AC_buf)) |>
+  na.omit() |> 
+  ggplot(aes(x=slope_clas, y=sum))+
+  geom_bar(stat='identity')+
+  labs(x="Terrain slope", y="Total area (km\u00b2)") +
+  theme_classic()
+
+
+1000*1000 / 1000000
+
+1000000
+
+
+
+
+
+
+library(terra)
+point<-vect("./borrar/ablancae_sites.shp")
+plot(point)
+distance(point) |> 
+  mean()
+which(dist>29000)
+
+library(tidyverse)
+data<-read.table("C:/Users/Mauricio Diaz/Documents/Pregrado/Tesis_preg/Muestreos/especies_sitios_curada.txt", sep="\t", dec=".", header=T)
+head(data)
+
+data |> 
+  filter(names=="20210419_062000.WAV" & sitio== "26")
+
+
+tocopy<-data |> 
+  mutate(coun=1) |> 
+  group_by(names, sitio) |> 
+  summarise(num.spp=sum(coun)) |> 
+  arrange(desc(num.spp)) |> 
+  mutate(names=paste0(sitio,"_",names))
+
+tocopy<-tocopy[1:80,]
+write.table(tocopy,"C:/Users/Mauricio Diaz/Documents/Trabajos/Proyectos/birdnet/audios_birdnet/spp_audios.txt",sep="\t", dec=".", row.names = F)
+
+a<-data[data$names %in% tocopy$names,] 
+write.table(a,"C:/Users/Mauricio Diaz/Documents/Trabajos/Proyectos/birdnet/audios/spp_sites.txt", sep="\t", dec=".", row.names = F)
+
+a |> 
+  filter(names=="20210422_062000.WAV" & sitio=="68")
+
+data[which(data$names=="20210515_054800.WAV"),]
+
+my.file.copy <- function(from, to) {
+  todir <- dirname(to)
+  if (!isTRUE(file.info(todir)$isdir)) dir.create(todir, recursive=TRUE)
+  file.copy(from = from,  to = to)
+}
+
+
+for (x in 1:nrow(tocopy)) {
+  my.file.copy(from = paste0("G:/Grabaciones_Ablancae/","Sitio ",tocopy[x,2],"/","Tesis ",tocopy[x,2],"/",tocopy[x,1]),
+               to = paste0("C:/Users/Mauricio Diaz/Documents/Trabajos/Proyectos/birdnet/audios/",tocopy[x,2],"_",tocopy[x,1]))
+}
+
+tocopy |> 
+  filter(sitio==1)
+
+
+mx<-vect("./Mexico_Estados/Mexico_continent.shp")
+slp1k<-rast("./WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
+
+slop250<-rast("C:/Users/Mauricio Diaz/Downloads/borrar/slope_90M_n00w090/dtm_slope.tif")
+roug<-rast("C:/Users/Mauricio Diaz/Downloads/borrar/slope_90M_n00w090/dtm_roughness.tif")
+
+slop2<- slop250 |> 
+  crop(mx) |> 
+  mask(mx) |> 
+  resample(slp1k)
+
+roug2<- roug |> 
+  crop(mx) |> 
+  mask(mx) |> 
+  resample(slp1k)
+
+plot(a)
+
+a<-c(slop2, roug2, slp1k) |> 
+  as.data.frame() |> 
+  na.omit()
+head(a)
+
+cor(a, method="spearman", use = "na.or.complete")
+cor(a, method="spearman")
+
+a |> 
+  ggplot(aes(x=slope_mx_g , y=dtm_roughness))+
+  geom_point()+
+  labs(x="Terrain slope", y="Terrain roughness")+
+  theme_classic()
+
+z<-rast("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/Riqueza/Riqueza_MX.tif")
+inegi<-rast("./INEGI/Cambios/INEGI_VII_TC.tif") |> 
+  resample(z, method="near") |> 
+  subst(2,100)
+  
+inegi<-subst(inegi, 2, 100)
+
+a<-z+inegi
+plot(a)
+writeRaster(a, "./borrar/Zxcat.tif")
+
+

@@ -373,9 +373,12 @@ tab.distxcats |>
 mean(tab.distxcats$pc.dist.C)
 mean(tab.distxcats$pc.dist.T)
 
-51*100/56 #especies con lamayoría de su distribucion en T
-5*100/56 #especies con lamayoría de su distribucion en C
+51*100/56 #especies con la mayoría de su distribucion en T
+5*100/56 #especies con la mayoría de su distribucion en C
 
+#cual especie tiene mas distribucion en T y C?
+tab.distxcats |> 
+  arrange(desc(pc.dist.C)) |> head()
 
 #---------------------------------------- Relación con la pendiente -----------------------------------------------
 mx.slope<- rast("F:/Maestria_DD/Shapes_MSc_DD/WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
@@ -605,13 +608,16 @@ slp_z_med<-
   #                                             T= "Transformed")))+
   scale_fill_manual(values=c("#248f5d","#f56038"), labels = c("Conserved","Transformed"))+
   scale_color_manual(values=c("#248f5d","#f56038"), labels = c("Conserved","Transformed"))+
-  labs(x="Species richness", y="Terrain slope (median)", fill="Categories", color="Categories", fill="Categories") +
-  theme(strip.text =  element_text(size=10, face="bold"),
-        strip.background = element_rect(color = "black", fill="white"))+
-  theme_classic()
+  labs(x="Species richness", y="Terrain slope (median)", 
+       fill="Categories", color="Categories", fill="Categories") +
+  theme_classic()+
+  theme(legend.position = "none",
+        strip.text =  element_text(size=10, face="bold"),
+        strip.background = element_rect(color = "black", fill="white"))
+
 
 #library(patchwork)
-((slp_dens_tot/f_Z)|slp_z_med )+ plot_annotation(tag_levels = 'A')
+(((slp_dens_tot/f_Z)|slp_z_med ) / slp_spp_bxplt_facet3) + plot_annotation(tag_levels = 'A')
 
 ggsave(filename = "./outputs/slp_merge.png",
        width = 10,
@@ -655,8 +661,7 @@ for(x in 1:length(cat.dir.TC)){
   print(cat.list.TC[x])
 }
 
-as.data.frame(do.call(rbind, list.cat.slp)) |> 
-#   write.table("./outputs/tablas/spp_slp.txt", dec=".", sep="\t", row.names = F)
+as.data.frame(do.call(rbind, list.cat.slp)) #|>  write.table("./outputs/tablas/spp_slp.txt", dec=".", sep="\t", row.names = F)
 # rm(list.cat.slp)
 
 #Barplot
@@ -700,6 +705,16 @@ spp_slp.join |>
   geom_hline(yintercept = 1.585008, color="red") + 
   labs(y="Terrain slope")
 
+spp_slp.join |>
+#  sample_n(100) |> 
+  ggplot(aes(y=fct_reorder(name, slope, .desc=F, .na_rm = TRUE), x=slope, width = after_stat(density)))+
+  geom_density_ridges(scale = 0.1)+
+  stat_density_ridges(quantile_lines = TRUE, quantiles = 0.5)+ #plotee la mediana dentro de cada uno
+  theme_classic()+
+  theme(axis.title.y = element_blank())+
+  geom_vline(xintercept = 1.585008, color="red") + 
+  labs(x="Terrain slope")
+
 # ggsave(filename = "./outputs/slp_spp_bxplt.png",
 #        width = 15,
 #        height = 10, #alto
@@ -707,7 +722,8 @@ spp_slp.join |>
 #        units ="cm",
 #        dpi = 200)
 
-spp_slp.join |>
+slp_spp_bxplt_facet3<-
+  spp_slp.join |>
   group_by(cat, name) |> 
   mutate(name=str_replace(name,"_"," ")) |> 
   summarize(median=median(slope, na.rm=T),
@@ -752,7 +768,7 @@ spp_slp.join |>
               values_from = c(median, sd)) |> 
   mutate(dif=median_C-median_T) |> 
   filter(dif<0) |> 
-  arrange(dif)
+  arrange(dif) |> 
   print(n=60)
 
 # 14 especies se distribuyeron en zonas más empinadas en las áreas transformadas
@@ -798,6 +814,44 @@ spp_slp.join |>
   scale_fill_manual(values=c("#248f5d","#f56038"), labels = c("Conserved","Transformed"))
 
 # ggsave(filename = "./outputs/slp_spp_bxplt_facet.png",
+#        width = 15,
+#        height = 10, #alto
+#        scale=2,
+#        units ="cm",
+#        dpi = 200)
+
+
+# Area en cada valor de pendiente -----------------------------------------
+mx.slope
+area<-rast("./WorldClim_30s/wc2.1_30s_elev/Area_slp_cor_AG/AC_buf.tif")
+INEGI_VII<-rast("./INEGI/Cambios/INEGI_VII_TC.tif")
+
+
+#1. reproyectar capa de area
+areawgs<-project(area, mx.slope, method="bilinear")
+INEGI_VII<-resample(INEGI_VII, mx.slope, method="near")
+
+#2. extraer valores de pendiente y area
+slp.area<-terra::extract(c(areawgs,INEGI_VII), as.points(mx.slope), bind = T) |> 
+  as.data.frame()
+
+slp.area |> 
+  na.omit() |> 
+#  sample_n(size=100) |> 
+  mutate(AC_buf=AC_buf/1000000, #a km cuadrado
+         slope_clas=cut(slope_mx_g , breaks = 0:31, labels = 0:30)) |> 
+  group_by(slope_clas, INEGI_VII_TC) |> 
+  summarise(sum.area=sum(AC_buf)) |>
+  na.omit() |> 
+  #ggplot(aes(x=slope_clas, y=sum.area))+
+   ggplot(aes(x=slope_clas, y=sum.area, fill=as.character(INEGI_VII_TC)))+
+  geom_bar(stat='identity')+
+  #labs(x="Terrain slope", y="Total area (km\u00b2)") +
+   labs(x="Terrain slope", y="Total area (km\u00b2)", fill="Categories") +
+   scale_fill_manual(values=c("#248f5d","#f56038"), labels = c("Conserved","Transformed"))+
+  theme_classic()
+
+# ggsave(filename = "./outputs/slp_area2.png",
 #        width = 15,
 #        height = 10, #alto
 #        scale=2,
