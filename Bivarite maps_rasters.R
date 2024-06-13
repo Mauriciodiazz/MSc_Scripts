@@ -50,8 +50,8 @@ plot(riqxslp)
 data <- bi_class(riqxslp, x = z, y = slope, style = "quantile", dim = 3)
 #data <- bi_class(stl_race_income, x = pctWhite, y = medInc, style = "quantile", dim = 3)
 
-map <- 
-  ggplot() +
+#map <- 
+  ggplot()+
   geom_sf(data = data, mapping = aes(fill = bi_class), colour = NA, show.legend = F) +
   bi_scale_fill(pal = "GrPink", dim = 3) +
   theme(panel.background = element_blank(),
@@ -59,14 +59,14 @@ map <-
         axis.text.y = element_blank(),
         axis.ticks = element_blank())
 
-
 legend <- 	
   bi_legend(
     pal = "GrPink",
     dim = 3,
     xlab = "Terrain slope",
     ylab = "Species richness",
-    size = 8, arrows=F)
+    size = 8, arrows=F,
+    flip_axes=T) #con esto se hace una modificación en la leyenda para que coincida con los valores del mapa
 
 map + inset_element(legend, 0, 0, 0.3, 0.3, align_to="full")
 

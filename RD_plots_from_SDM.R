@@ -211,6 +211,7 @@ cols<-xy.merge$cols
 slp<-xy.merge$slope_mx_g
 #clasificacion de color de clasificacion de mapa bivariado
 by_class_col<-xy.merge$by_class_col
+by_class_col<-na.omit(by_class_col)
 by_class_col[which(by_class_col==1)]<-"#E7E7E7"
 by_class_col[which(by_class_col==2)]<-"#9ed4de"
 by_class_col[which(by_class_col==3)]<-"#1bacbe"
@@ -220,7 +221,7 @@ by_class_col[which(by_class_col==6)]<-"#527f8d"
 by_class_col[which(by_class_col==7)]<-"#e35959"
 by_class_col[which(by_class_col==8)]<-"#ac5255"
 by_class_col[which(by_class_col==9)]<-"#5d3f47"
-by_class_col[which(is.na(by_class_col))]<-"#000000"
+by_class_col[which(is.na(by_class_col))]<-"NA"
 
 
 #color de las categorias
@@ -360,6 +361,7 @@ RangeDiversity <- function(Delta){
   list(RD.single.values=data.frame(Species, Quadrats, RichnessMean, RangeMean,Fill, Beta, V_species, V_sites),RD.species.values=data.frame(RangeSize,RangeRichness,RangeVariance,CovarianceSpecies),RD.sites.values=data.frame(SpeciesRichness,SiteRange,RichnessVariance,CovarianceSites),SitesCovariance=SitesCovariance,SpeciesCovariance=SpeciesCovariance)  
   
 }
+library(scales)
 sites.RDplot<- function(pamRD, cols) {
   cols<-cols
   
@@ -383,7 +385,10 @@ sites.RDplot<- function(pamRD, cols) {
   
   #RD plot
   par(mar= c(5, 5, 1, 1))
-  plot(SiteRange/Quadrats, SpeciesRichness/Species, xlim = c(0,1), ylim = c(0,1), xlab = "Mean proportional per-site range", ylab = "Proportional species richness", pch=21,bg=cols,cex=1.2, col=alpha(cols,1))
+  plot(SiteRange/Quadrats, 
+       SpeciesRichness/Species, xlim = c(0,1), ylim = c(0,1), 
+       xlab = "Mean proportional per-site range", ylab = "Proportional species richness", 
+       pch=21,cex=1.2, col=alpha(cols,1))
   
   
   # #ISOCOVARIANCE LINES

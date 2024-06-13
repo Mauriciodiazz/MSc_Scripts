@@ -108,7 +108,7 @@ writeRaster(radpx_ame_mean, "./WorldClim_30s/wc2.1_30s_srad/wc2.1_30s_srad_Ame/w
 #Para esto, debo crear un bucle, de tal manera que  el resulatdo final es una matriz donde las filas son las especies y las columnas son las variables y el valor de cada celda es el valor del P de cada variable para cada especie
 
 #cargar las especies
-spp.dir<-list.files("D:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD", pattern = ".shp$", full.names = T)
+spp.dir<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD", pattern = ".shp$", full.names = T)
 #Esto contiene la ruta de cada shapefile
 
 
@@ -120,7 +120,7 @@ vbles_stack<-rast(c(list.files(path = "./WorldClim_30s/wc2.1_30s_bio/wc2.1_30s_b
 t.sp.norm<- data.frame(
   matrix(nrow = length(spp.dir), ncol = length(vbles_stack@ptr$names)))
 names(t.sp.norm)<-vbles_stack@ptr$names
-row.names(t.sp.norm)<- list.files("D:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD", pattern = ".shp$", full.names = F)
+row.names(t.sp.norm)<- list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD", pattern = ".shp$", full.names = F)
 
 
 #sp.ext está mas abajo sp.ext<-extract(x=vbles_stack, y=points.sp, ID=FALSE)
@@ -176,7 +176,7 @@ flattenCorrMatrix <- function(cormat) {
   )
 }
 
-spp.list<-list.files("D:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD", pattern = ".shp$", full.names = F) #solo tiene la lista de las especies
+spp.list<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD", pattern = ".shp$", full.names = F) #solo tiene la lista de las especies
 
 #paquetes importantes para el filtro: terra,  corplot, y la función de flttencorrmatrix
 for (x in 1:length(spp.dir)) {
@@ -205,7 +205,7 @@ for (x in 1:length(spp.dir)) {
 #por ahora voy a hacerlo para una sola especie, luego la idea es hacer un blucle para todas
 
 #de manera manual obtuve la M para A. woodhouseii
-A.wod.M<-vect("D:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.shapes_DD/A. woodhouseii/A. woodhouseii_M.shp")
+A.wod.M<-vect("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.shapes_DD/A. woodhouseii/A. woodhouseii_M.shp")
 plot(A.wod.M)
 
 #cortar raster a la M
@@ -218,7 +218,7 @@ vs<-c(1,7,8,9,10,11,12,15,13,16,19)
 #guardar rasters en formato ascii
 for (x in 1:length(vs)) {
   writeRaster(A.wod.M.stack2[[x]], 
-              paste("D:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.shapes_DD/A. woodhouseii/M_variables/", names(A.wod.M.stack2)[vs[x]], "_A.wood.asc", sep = ""), NAflag=-9999, overwrite=T)
+              paste("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.shapes_DD/A. woodhouseii/M_variables/", names(A.wod.M.stack2)[vs[x]], "_A.wood.asc", sep = ""), NAflag=-9999, overwrite=T)
 }
 
 
@@ -228,9 +228,9 @@ for (x in 1:length(vs)) {
 library(stringr)
 spp.dir #direcciones de los registros cada especie
 spp.list #nombres del archivo .shp por especie
-spp.carp.list<-list.files("D:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.vbles_DD/", full.names = T)
-spp.Mshp.list<-list.files("D:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.shapes_DD/", full.names = T, pattern=".shp$")
-spp.sets<-read.table("D:/Maestria_DD/Shapes MSc_DD/WorldClim_30s/spec.sets.txt", header=T, sep="\t")
+spp.carp.list<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.vbles_DD/", full.names = T)
+spp.Mshp.list<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/M_spec.shapes_DD/", full.names = T, pattern=".shp$")
+spp.sets<-read.table("./WorldClim_30s/spec.sets.txt", header=T, sep="\t")
 
 
 for (x in 1:length(spp.list)) {
