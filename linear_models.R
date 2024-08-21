@@ -1,3 +1,5 @@
+# Analisis riqueza vs pendiente usando modelos lineales autoregresivos
+
 # Packages
 library(letsR) # lets.presab.points
 library(ncf)
@@ -7,11 +9,9 @@ library(spdep)
 library(tidyverse)
 library(terra)
 
-#Analisis riqueza vs pendiente
+# Mapa de riqueza a partir de raster con LetsR -----------------------------------------------
+# Esta parte del script realiza una PAM desde rasters, esto con el fin de establecer de manera más sencilla mapas de riqueza de diversa resolución  
 
-Z.slp.cats<- read.table("./outputs/tablas/Z.slp.cats.txt", sep = "\t", dec=".", header=T)
-
-# Mapa de riqueza con LetsR -----------------------------------------------
 #Direcciones de los rasters de distribución potencial
 ras.dir<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/MB_Mex/", full.names = T, pattern =".tif$")
 #Lista de nombres de los archivos
@@ -19,7 +19,6 @@ ras.list<-list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_D
   substr(1,7) #Esto solo elimina los caracteres .tif
 
 # Crear PAM y raster de riqueza con Lets R a partir de rasters ------------
-
 
 # En este bucle lo que hago es abrir los rasters, los reescalo si es necesario y luego los convierto en puntos, de manera que el centroide del pixel contiene valores de 0 y 1. Esto lo guardo en una lista y cada objeto de la lista contiene la lista de presencias (valores de 1 de los rasters de distribución potencial)
 
@@ -47,7 +46,6 @@ head(spd.list.join)
 
 #Aqui voy a hacer lo mismo de arriba, pero la diferencia es que a cada área de distribución la voy a cortar para las zonas conservadas
 cons<-vect("INEGI/Cambios/TC_s7/C_disuelto_s7.shp")
-
 
 spd.list<-list()
 for(i in 1:length(ras.list)){
@@ -171,7 +169,7 @@ plot(cor.lm.res)
 
 #Este método utiliza 3 tipos de pesos espaciales: c("W", "C", "S") y dos distancias (min y max), por lo tanto, hay que establecer 6 modelos Wmax, Wmin, Cmax, Cmin, etc. Y elegir cuál de ellos es el mejor a través de una evaluación con el AIC.
 
-# preparación de una función para correr con el modelo global y el de cada categoría
+# preparación de una función para correr con el modelo global y el de cada categoría. Esta función coje la base de datos y realiza los 6 modelos y extrae información importante para cada uno y realiza una tabla
 
 SAR_bucle<-function(data){
   #1. DF to contain the model results and AIC values
@@ -197,18 +195,19 @@ SAR_bucle<-function(data){
   # 2. Data spacialization
   sp <- st_as_sf( x = data, 
                   coords = c("x","y"),
-                  crs = '+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs')
+                  crs = 4326)
   
   # 3. Create neighbours list of class nb --------------------------------------
-  k1 = knn2nb(knearneigh(sp, k = 1)) 
+  k1 = knn2nb(knearneigh(sp, k = 1))#k hace referencia a los pixeles cercanos de cada pixel. 
+  #1 solo cuenta la distancia al de la derecha; 2 derecha-izquierda; 4 costados; 8 todos los cercanos
   
   # 4. Calculate distances -----------------------------------------------------
-  dist <- unlist(nbdists(k1, sp))
+  dist <- unlist(nbdists(k1, sp, longlat=T)) #cuidado! si sp es una matriz, entonces debe especificarse longlat=T, porque la medida de distancia debe ser en grados
   max1 <- max(dist)
   min1 <- min(dist)
   
   # 4.1 create a series of neighbour matrices based on different distances (distances are in km)
-  d_min <- dnearneigh(sp, longlat = F, d1 = 0, d2 = min1)
+  d_min <- dnearneigh(sp, longlat = F, d1 = 0, d2 = min1) #d1 y d2 debe ser en grados
   d_max <- dnearneigh(sp, longlat = F, d1 = 0, d2 = max1)
   
   # Spatial weigths creation ------------------------------------------------
@@ -283,6 +282,8 @@ SAR_bucle<-function(data){
   
 }
 
+# Como ya se cuales son los mejores modelos, los voy a correr cada uno para los graficos y las tablas
+
 # Modelo Global -----------------------------------------------------------
 
 lm.g<- lm(z ~ slope,
@@ -294,12 +295,12 @@ SAR_bucle(z.slp)
 
 sp_g <- st_as_sf( x = z.slp, 
                 coords = c("x","y"),
-                crs = '+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs')
+                crs = 4326)
 
-k1_g = knn2nb(knearneigh(sp_g, k = 1)) 
+k1_g = knn2nb(knearneigh(sp_g, k = 1))
 
 
-dist_g <- unlist(nbdists(k1_g, sp_g))
+dist_g <- unlist(nbdists(k1_g, sp_g, longlat = T))
 
 max1_g <- max(dist_g)
 
@@ -314,7 +315,6 @@ error_max_g <- spatialreg::errorsarlm(
   listw = sw_max_g,
   tol = 1e-12, 
   zero.policy = TRUE)
-
 
 summary(error_max_g, Nagelkerke=TRUE)
 
@@ -334,12 +334,12 @@ SAR_bucle(C)
 
 sp_c <- st_as_sf( x = C, 
                   coords = c("x","y"),
-                  crs = '+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs')
+                  crs = 4326)
 
 k1_c = knn2nb(knearneigh(sp_c, k = 1)) 
 
 
-dist_c <- unlist(nbdists(k1_c, sp_c))
+dist_c <- unlist(nbdists(k1_c, sp_c, longlat = T))
 
 max1_c <- max(dist_c)
 
@@ -359,43 +359,43 @@ summary(error_max_c, Nagelkerke=TRUE)
 
 z~slope*cat2
 
-
-# Modelo para T -----------------------------------------------------------
-Tr<-
-  z.slp |> 
-  filter(cat2=="T")
-
-lm.t<- lm(z ~ slope,
-          data = Tr)
-
-SAR_bucle(Tr)
-
-#Mejor modelo para C= max_w
-
-sp_t <- st_as_sf( x = Tr, 
-                  coords = c("x","y"),
-                  crs = '+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs')
-
-k1_t = knn2nb(knearneigh(sp_t, k = 1)) 
-
-
-dist_t <- unlist(nbdists(k1_t, sp_t))
-
-min1_t <- min(dist_t)
-
-d_min_t <- dnearneigh(sp_t, longlat = F, d1 = 0, d2 = min1_t)
-
-sw_min_t <- nb2listw(d_min_t, zero.policy = TRUE, style = "W") 
-
-# SAR
-error_min_t <- spatialreg::errorsarlm(
-  z ~ slope,
-  data = Tr,
-  listw = sw_min_t,
-  tol = 1e-12, 
-  zero.policy = TRUE)
-
-summary(error_min_t, Nagelkerke=TRUE)
+# 
+# # Modelo para T -----------------------------------------------------------
+# Tr<-
+#   z.slp |> 
+#   filter(cat2=="T")
+# 
+# lm.t<- lm(z ~ slope,
+#           data = Tr)
+# 
+# SAR_bucle(Tr)
+# 
+# #Mejor modelo para C= max_w
+# 
+# sp_t <- st_as_sf( x = Tr, 
+#                   coords = c("x","y"),
+#                   crs = '+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs')
+# 
+# k1_t = knn2nb(knearneigh(sp_t, k = 1)) 
+# 
+# 
+# dist_t <- unlist(nbdists(k1_t, sp_t))
+# 
+# min1_t <- min(dist_t)
+# 
+# d_min_t <- dnearneigh(sp_t, longlat = F, d1 = 0, d2 = min1_t)
+# 
+# sw_min_t <- nb2listw(d_min_t, zero.policy = TRUE, style = "W") 
+# 
+# # SAR
+# error_min_t <- spatialreg::errorsarlm(
+#   z ~ slope,
+#   data = Tr,
+#   listw = sw_min_t,
+#   tol = 1e-12, 
+#   zero.policy = TRUE)
+# 
+# summary(error_min_t, Nagelkerke=TRUE)
 
 
 # Correlograms for OLS and SAR models ------------------------------------------------
@@ -417,7 +417,7 @@ cor.ols.g <- correlog(z.slp$x, z.slp$y,
                          resamp = 1)
 # SAR
 cor.sar.g <- correlog(z.slp$x, z.slp$y,
-                         z = residuals(error_max_g),
+                         z = residuals(error_min_g),
                          na.rm = TRUE,
                          increment = 1,
                          resamp = 1)
@@ -436,36 +436,38 @@ cor.sar.c <- correlog(C$x, C$y,
                          increment = 1,
                          resamp = 1)
 
-# Correlograma para T ---------------------------------------------------
-# OLS
-cor.ols.t <- correlog(Tr$x, Tr$y,
-                         z = residuals(lm.t),
-                         na.rm = TRUE,
-                         increment = 1,
-                         resamp = 1)
-# SAR
-cor.sar.t <- correlog(Tr$x, Tr$y,
-                         z = residuals(error_min_t),
-                         na.rm = TRUE,
-                         increment = 1,
-                         resamp = 1)
+# # Correlograma para T ---------------------------------------------------
+# # OLS
+# cor.ols.t <- correlog(Tr$x, Tr$y,
+#                          z = residuals(lm.t),
+#                          na.rm = TRUE,
+#                          increment = 1,
+#                          resamp = 1)
+# # SAR
+# cor.sar.t <- correlog(Tr$x, Tr$y,
+#                          z = residuals(error_min_t),
+#                          na.rm = TRUE,
+#                          increment = 1,
+#                          resamp = 1)
 
-par(mfrow=c(3,2))
+par(mfrow=c(2,2))
 
-plot(cor.ols.g, main="OLS global correlation", ylim=c(-3,1))
+plot(cor.ols.g, main="Correlación global OLS", ylim=c(-3,1), ylab="Correlación", xlab="Distancia (Clase de distancia)")
 abline(h=0, col="red")
-plot(cor.sar.g, main="SAR global correlation", ylim=c(-3,1))
-abline(h=0, col="red")
-
-plot(cor.ols.c, main="OLS conserved areas correlation", ylim=c(-3,1))
-abline(h=0, col="red")
-plot(cor.sar.c, main="SAR conserved areas correlation", ylim=c(-3,1))
+plot(cor.sar.g, main="Correlación global SAR", ylim=c(-3,1), ylab="Correlación", xlab="Distancia (Clase de distancia)")
 abline(h=0, col="red")
 
-plot(cor.ols.t, main="OLS transformed areas correlation", ylim=c(-3,1))
+plot(cor.ols.c, main="Correlación áreas conservadas OLS", ylim=c(-3,1), 
+     ylab="Correlación", xlab="Distancia (Clase de distancia)")
 abline(h=0, col="red")
-plot(cor.sar.t, main="SAR transformed areas correlation", ylim=c(-3,1))
+plot(cor.sar.c, main="Correlación áreas conservadas SAR", ylim=c(-3,1),
+     ylab="Correlación", xlab="Distancia (Clase de distancia)")
 abline(h=0, col="red")
+
+# plot(cor.ols.t, main="OLS transformed areas correlation", ylim=c(-3,1))
+# abline(h=0, col="red")
+# plot(cor.sar.t, main="SAR transformed areas correlation", ylim=c(-3,1))
+# abline(h=0, col="red")
 
 par(mfrow=c(1,1))
 
@@ -504,7 +506,7 @@ z.slp |>
 #library(patchwork)
 slp_z_g + slp_z_cat + plot_annotation(tag_levels = 'A')
 
-ggsave(filename = "./outputs/SAR_zxslp.png",
+ggsave(filename = "./outputs/SAR_zxslp.svg",
        width = 20,
        height = 10, #alto
        scale=1,

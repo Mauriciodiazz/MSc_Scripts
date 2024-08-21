@@ -13,7 +13,7 @@ library(vegan)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) 
 
 # Datos
-data <- read.csv("data.csv")
+data <- read.csv("./Scripts/codigoGLS/data.csv")
 names(data)
 data
 
@@ -32,14 +32,14 @@ hist(datos_z$y)
 ##################################################
 #Spatial correlation test
 #Moran's Test
-dists <- as.matrix(dist(cbind(datos_z$coordx, datos_z$coordy))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
-dists.inv <- 1/dists #inverso de esa distancia
-diag(dists.inv) <- 0 #la diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
-dists.inv[1:5, 1:5]
+dists2 <- as.matrix(dist(cbind(datos_z$coordx, datos_z$coordy))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
+dists.inv2 <- 1/dists2 #inverso de esa distancia
+diag(dists.inv2) <- 0 #la diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
+dists.inv2[1:5, 1:5]
 ##
-moranI <- Moran.I(x=datos_z$y, weight=dists.inv) # p.value significativo indica fuerte autocorrelacion espacial
+moranI2 <- Moran.I(x=datos_z$y, weight=dists.inv2) # p.value significativo indica fuerte autocorrelacion espacial
 #La matriz de pesos es la distancia euclidiana que hay entre cada ímtp
-moranI
+moranI2
 
 #Spatial correlation correction with GLS
 #function using the correlation argument. We fit our model using different correlation structures, and we then use AIC to choose the best model. 

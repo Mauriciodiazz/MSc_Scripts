@@ -1,0 +1,240 @@
+
+#Para poder hacer los modelos de regresión, es necesario crear un mapa de riqueza y con letsR puedo crear un mapa de riqueza apartir de una tabla de las coordanas de las especies (spd.list.join) 
+
+#1. Hay que crear la Matriz de presencia-ausencia PAM a partir de los puntos de presencia a una resolucion de 10km
+library(letsR)
+library(tidyverse)
+PAM<-lets.presab.points(xy= as.matrix(spd.list.join[,1:2]),
+                        species= spd.list.join$spp,
+                        xmn = -120,
+                        xmx = -85,
+                        ymn = 14,
+                        ymx = 32, #10km 0.08333 / 30km 0.24999 /50km 0.41665
+                        resol = 0.08333) 
+
+x11()
+plot(PAM)
+summary(PAM)
+PAM.raster<-PAM$Richness_Raster
+
+# 2. Cargar y remuestrear el rasters a la resolución de la capa de riqueza ----------
+
+# Remuestrear pendiente ---------------------------------------------------
+
+slope<-rast("./WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
+slope.3<-resample(slope, PAM.raster, method="bilinear")
+
+
+# Remuetsrear áreas conservadas y transformadas --------------
+
+inegivii<-rast("./INEGI/Cambios/INEGI_VII_TC.tif")
+inegivii.3<-resample(inegivii, PAM.raster, method="near")
+
+
+# 3. Extraer pendiente e inegi vii para cada pix de riqueza --------
+z.slp<-extract(c(slope.3,inegivii.3, PAM.raster), 
+               as.points(PAM.raster), xy=T) |> 
+  na.omit()
+head(z.slp)
+
+# ordenar columnas
+z.slp<-z.slp[,c(5,6,4,2,3)]
+names(z.slp)<-c("x","y","z","slope","cat")
+names(z.slp)
+z.slp$cat<-as.character(z.slp$cat)
+z.slp$cat2<-z.slp$cat
+z.slp[which(z.slp$cat2==2),6]<-"T"
+z.slp[which(z.slp$cat2==1),6]<-"C"
+str(z.slp)
+levels(factor(z.slp$cat))
+
+# Evaluando estructura espacial -------------------------------------------
+
+# semivariograma
+distancias<-dist(z.slp[,c(1,2)])
+summary(distancias)
+head(z.slp)
+
+##################################################
+### script de Spatial Filters curso de macro
+
+#Agregando el “espacio” al análisis de la riqueza
+
+#Cargar los siguientes paquetes:
+library(letsR)
+library(sf)
+library(terra)
+library(ape)
+library(vegan)
+
+#Ajustar el modelo global (OLS) entre la riqueza de aves y las variables ambientales
+aves.ras1.lm <- lm(z ~ slope:cat2, data = z.slp)
+aves.ras1.glm <- glm(z ~ slope:cat2, data = z.slp, family=poisson(link = "log"))
+summary(aves.ras1.lm)
+summary(aves.ras1.glm)
+
+aves.ras1.lm |> 
+  residuals() |> 
+  hist()
+
+bb
+
+#Checar la autocorrelación espacial en los residuos del modelo
+
+#Necesitamos crear una matriz de distancias geográficas entre los sitios/celdas
+aves.ras1.coords.dist <- lets.distmat(as.matrix(z.slp[, c(1, 2)]))
+# Ahora sí podemos calcular el I de Moran para diferentes clases de distancia y ver el correlograma resultante
+aves.ras1.lm.moran <- lets.correl(residuals(aves.ras1.lm), aves.ras1.coords.dist, 10)
+
+# hay estructura espacial en los residuales!
+
+# ¿hay autocorrelación espacial dentro de mi variable?
+
+# Spatial correlation test - Moran's Index --------------------------------
+library(gstat)
+
+
+# Cargar paquetes
+library(letsR)
+library(tidyverse)
+library(sf)
+library(terra)
+library(ape)
+library(vegan)
+library(gstat)
+library(lattice)
+library(nlme)
+library(MuMIn)
+
+# Cargo la tabla para optimizar tiempo
+spd.list.join<- read.table("F:/Maestria_DD/Shapes_MSc_DD/outputs/tablas/spp_PAM.txt",sep="\t", dec=".", header=T)
+head(spd.list.join)
+
+
+#1. Hay que crear la Matriz de presencia-ausencia PAM a partir de los puntos de presencia a una resolucion de 10km
+PAM<-lets.presab.points(xy= as.matrix(spd.list.join[,1:2]),
+                        species= spd.list.join$spp,
+                        xmn = -120,
+                        xmx = -85,
+                        ymn = 14,
+                        ymx = 32, #10km 0.08333 / 30km 0.24999 /50km 0.41665
+                        resol = 0.08333) 
+plot(PAM)
+summary(PAM)
+#Genero un objeto raster con la riqueza 
+PAM.raster<-PAM$Richness_Raster 
+
+
+# Remuestrear pendiente ---------------------------------------------------
+
+slope<-rast("F:/Maestria_DD/Shapes_MSc_DD/WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
+slope.3<-resample(slope, PAM.raster, method="bilinear")
+
+# Remuetsrear áreas conservadas y transformadas --------------
+
+inegivii<-rast("F:/Maestria_DD/Shapes_MSc_DD/INEGI/Cambios/INEGI_VII_TC.tif")
+inegivii.3<-resample(inegivii, PAM.raster, method="near")
+
+
+# 3. Extraer pendiente e inegi vii para cada pix de riqueza --------
+z.slp<-terra::extract(c(slope.3,inegivii.3, PAM.raster), 
+                      as.points(PAM.raster), xy=T) |> 
+  na.omit()
+head(z.slp)
+
+# Ordenar columnas
+z.slp<-z.slp[,c(5,6,4,2,3)]
+# Renombrar columnas
+names(z.slp)<-c("x","y","z","slope","cat")
+# La variable es numerica, entonces voy a crear otra columna con las letras que cada una representa y convertir esa en caracteres
+z.slp$cat<-as.character(z.slp$cat)
+z.slp$cat2<-z.slp$cat
+z.slp[which(z.slp$cat2==2),6]<-"T"
+z.slp[which(z.slp$cat2==1),6]<-"C"
+# Revisar la etsructura de cada columna
+str(z.slp)
+levels(factor(z.slp$cat))
+
+
+
+# Modelos lineales --------------------------------------------------------
+
+aves.ras1.lm <- lm(z ~ slope:cat2, data = z.slp)
+summary(aves.ras1.lm)
+
+#residuales
+residuals(aves.ras1.lm) |> 
+  hist()
+
+plot(aves.ras1.lm)
+
+
+# Moran con los datos del profe Juan --------------------------------------
+
+#Moran's Test
+dists <- as.matrix(dist(cbind(z.slp$x, z.slp$y))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
+
+# inverso de esa distancia
+dists.inv <- 1/dists 
+
+# La diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
+diag(dists.inv) <- 0 
+
+# Reviso
+dists.inv[1:5, 1:5]
+
+# Índice de Moran
+moranI <- Moran.I(x=z.slp$z, weight=dists.inv) # p.value significativo indica fuerte autocorrelacion espacial
+#La matriz de pesos es la distancia euclidiana que hay entre cada ímtp
+
+moranI 
+
+## P-valor de 0! por que?
+#Será que si uso los datos que me pasó Juan sigue dando cero?
+
+
+# Ahora con los datos de Juan --------------------------------------------
+
+# Datos
+data <- read.csv("F:/Maestria_DD/Shapes_MSc_DD/Scripts/codigoGLS/data.csv")
+
+# Normalized variables
+# z-transform on our data (mean-centering and dividing by one standard deviation)
+datos_z <- decostand(data[,c(4:7)], "standardize") 
+datos_z <- cbind(data[,c(1:3,8)], datos_z)
+head(datos_z)
+
+##################################################
+#Spatial correlation test
+#Moran's Test
+dists2 <- as.matrix(dist(cbind(datos_z$coordx, datos_z$coordy))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
+dists.inv2 <- 1/dists2 #inverso de esa distancia
+diag(dists.inv2) <- 0 #la diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
+dists.inv2[1:5, 1:5]
+##
+moranI2 <- Moran.I(x=datos_z$y, weight=dists.inv2) # p.value significativo indica fuerte autocorrelacion espacial
+#La matriz de pesos es la distancia euclidiana que hay entre cada ímtp
+moranI2
+
+#### También el valor-P es 0!! ¿Qué interpreta uno ahí?
+#2. LetsR tiene una forma de generar un índice de Moran con una grafica, vamos a probar...
+
+lets.correl(z.slp$z, dists, 10,
+            equidistant = FALSE, 
+            plot = TRUE)
+
+
+lets.correl(datos_z$y, dists2, 12,
+            equidistant = FALSE, 
+            plot = TRUE)
+
+#Ahora que pasa con los residuales de los modelos?
+
+# Checar la autocorrelación espacial en los residuos del modelo
+
+# Necesitamos crear una matriz de distancias geográficas entre los sitios/celdas
+aves.ras1.coords.dist <- lets.distmat(as.matrix(z.slp[, c(1, 2)]))
+# Ahora sí podemos calcular el I de Moran para diferentes clases de distancia y ver el correlograma resultante
+aves.ras1.lm.moran <- lets.correl(residuals(aves.ras1.lm), aves.ras1.coords.dist, 10)
+
+#la gráfica es muy similar.... y los residuales tambien...

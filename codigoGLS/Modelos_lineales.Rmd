@@ -1,0 +1,184 @@
+---
+title: "Modelos_lineares"
+author: "Mauricio Diaz"
+date: "2024-02-10"
+output: html_document
+---
+
+## Modelos lineales
+
+En este script incluyo el código para los modelos lineales entre la riqueza y la pendiente en categorías de cambio de cobertura en méxico
+
+#### Preparación de los datos
+
+Primero, voy a cargar los datos de las especies. Esta tabla "spd.list.join" contiene las coordenadas de los centroides de los pixeles de las especies. De manera que cada fila corresponde a cada pixel de distribución de cada una de las 56 especies
+
+```{r echo=TRUE}
+# Cargar paquetes
+library(letsR)
+library(tidyverse)
+library(sf)
+library(terra)
+library(ape)
+library(vegan)
+library(gstat)
+library(lattice)
+library(nlme)
+library(MuMIn)
+```
+
+```{r Cargar tabla}
+# Cargo la tabla para optimizar tiempo
+spd.list.join<- read.table("F:/Maestria_DD/Shapes_MSc_DD/outputs/tablas/spp_PAM.txt",sep="\t", dec=".", header=T)
+head(spd.list.join)
+```
+
+Ya con la tabla de las especies voy a construir el raster de riqueza con el paquete **letsR**. LetsR me permite crear la matriz de presencia ausencia y además construye un mapa de riqueza a una resolución determinada; 10km en este caso
+
+```{r letsR}
+#1. Hay que crear la Matriz de presencia-ausencia PAM a partir de los puntos de presencia a una resolucion de 10km
+
+PAM<-lets.presab.points(xy= as.matrix(spd.list.join[,1:2]),
+                        species= spd.list.join$spp,
+                        xmn = -120,
+                        xmx = -85,
+                        ymn = 14,
+                        ymx = 32, #10km 0.08333 / 30km 0.24999 /50km 0.41665
+                        resol = 0.08333) 
+plot(PAM)
+summary(PAM)
+#Genero un objeto raster con la riqueza 
+PAM.raster<-PAM$Richness_Raster 
+
+```
+
+Ahora, lo siguiente es crear la tabla con los valores de pendiente y cobertura para cada valor de riqueza. Para eso hay que cargar los rasters de pendiente y cobertura INEGI. Los mapas estan en diferente resolución, entonces hay que remuetsrearlos
+
+```{r}
+# Remuestrear pendiente ---------------------------------------------------
+
+slope<-rast("F:/Maestria_DD/Shapes_MSc_DD/WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
+slope.3<-resample(slope, PAM.raster, method="bilinear")
+
+# Remuetsrear áreas conservadas y transformadas --------------
+
+inegivii<-rast("F:/Maestria_DD/Shapes_MSc_DD/INEGI/Cambios/INEGI_VII_TC.tif")
+inegivii.3<-resample(inegivii, PAM.raster, method="near")
+
+
+# 3. Extraer pendiente e inegi vii para cada pix de riqueza --------
+z.slp<-terra::extract(c(slope.3,inegivii.3, PAM.raster), 
+               as.points(PAM.raster), xy=T) |> 
+  na.omit()
+head(z.slp)
+
+# Ordenar columnas
+z.slp<-z.slp[,c(5,6,4,2,3)]
+# Renombrar columnas
+names(z.slp)<-c("x","y","z","slope","cat")
+# La variable es numerica, entonces voy a crear otra columna con las letras que cada una representa y convertir esa en caracteres
+z.slp$cat<-as.character(z.slp$cat)
+z.slp$cat2<-z.slp$cat
+z.slp[which(z.slp$cat2==2),6]<-"T"
+z.slp[which(z.slp$cat2==1),6]<-"C"
+# Revisar la etsructura de cada columna
+str(z.slp)
+levels(factor(z.slp$cat))
+
+```
+
+#### Modelos lineares
+
+Primero, voy a correr un modelo linear simple y ver los residuales
+
+```{r}
+aves.ras1.lm <- lm(z ~ slope:cat2, data = z.slp)
+summary(aves.ras1.lm)
+```
+
+Los residuales parecen ser normales... Voy a ver
+
+```{r}
+residuals(aves.ras1.lm) |> 
+  hist()
+```
+
+Y los plots del modelo ¿como son?
+
+```{r}
+plot(aves.ras1.lm)
+```
+
+#### Parece que hay normalidad en los resiudales... Pero, estará bien? O será que existe autocorrelación espacial?
+
+voy a probar el índice de Moran
+
+1.  Con el código que me pasó el profe Juan
+
+```{r}
+#Moran's Test
+dists <- as.matrix(dist(cbind(z.slp$x, z.slp$y))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
+
+# inverso de esa distancia
+dists.inv <- 1/dists 
+
+# La diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
+diag(dists.inv) <- 0 
+
+# Reviso
+dists.inv[1:5, 1:5]
+
+# Índice de Moran
+moranI <- Moran.I(x=z.slp$z, weight=dists.inv) # p.value significativo indica fuerte autocorrelacion espacial
+#La matriz de pesos es la distancia euclidiana que hay entre cada ímtp
+
+moranI 
+
+```
+
+## P-valor de 0! por que?
+
+Será que si uso los datos que me pasó Juan sigue dando cero?
+
+```{r}
+# Datos
+data <- read.csv("F:/Maestria_DD/Shapes_MSc_DD/Scripts/codigoGLS/data.csv")
+
+# Normalized variables
+# z-transform on our data (mean-centering and dividing by one standard deviation)
+datos_z <- decostand(data[,c(4:7)], "standardize") 
+datos_z <- cbind(data[,c(1:3,8)], datos_z)
+head(datos_z)
+
+##################################################
+#Spatial correlation test
+#Moran's Test
+dists2 <- as.matrix(dist(cbind(datos_z$coordx, datos_z$coordy))) # es importante que no existan coordenadas duplicadas! o sitios con las mismas coordenadas. Esto es una matriz de distancias cartesianas entre cada par de coordenadas que repreentan un punto en el espacio
+dists.inv2 <- 1/dists2 #inverso de esa distancia
+diag(dists.inv2) <- 0 #la diagonal de esa matriz tiene un valor de cero porque la distancia al mismo punto es cero y este objeto tiene valores de infinito
+dists.inv2[1:5, 1:5]
+##
+moranI2 <- Moran.I(x=datos_z$y, weight=dists.inv2) # p.value significativo indica fuerte autocorrelacion espacial
+#La matriz de pesos es la distancia euclidiana que hay entre cada ímtp
+moranI2
+```
+
+#### También el valor-P es 0!! ¿Qué interpreta uno ahí?
+
+2.  LetsR tiene una forma de generar un índice de Moran con una grafica, vamos a probar...
+
+```{r}
+lets.correl(z.slp$z, dists, 10,
+           equidistant = FALSE, 
+           plot = TRUE)
+```
+
+y con los datos del profe Juan?
+
+```{r}
+lets.correl(datos_z$y, dists2, 12,
+           equidistant = FALSE, 
+           plot = TRUE)
+```
+
+Los del profe juan si tienen barras de error... Por qué? Qué puede uno inferir ahi? Será que no hay autocorrelación espacial?

@@ -719,12 +719,11 @@ ggsave(filename = "./outputs/slp_merge3.png",
 Z.slp.cats |> 
 #  sample_n(size=100) |> 
   ggplot(aes(x=cat, y=slope, fill=cat))+
-  geom_boxplot()+
-  labs(y="Terrain slope") +
+  geom_violin()+
+  geom_boxplot(width=0.1)+
+  labs(y="Pendiente del terreno") +
   scale_fill_manual(values=c("#248f5d","#e5b636"))+
-  scale_x_discrete(labels=c("Conserved","Transformed"))+
   scale_y_continuous(trans="pseudo_log", limits=c(0, 35))+
-  geom_hline(yintercept= 2.318058,color="red",linetype = "dashed")+
   geom_hline(yintercept = c(0,2,10,20), color="black") +
   theme_classic()+
   theme(axis.title.x = element_blank(),
@@ -776,18 +775,54 @@ as.data.frame(do.call(rbind, zon.list)) |>
   mutate(cat=recode(INEGI_VII_TC, `1`="C", `2`="T")) |> 
   write.table("./outputs/tablas/zon.biom.txt", sep="\t", dec=".", row.names=F)
 
-zon<-read.table("./outputs/tablas/zon.biom.txt", sep="\t", dec=".", header=T) #ojo debe cambiar el ojeto dependiendo de la zonificacion
+zon<-read.table("./outputs/tablas/zon.biom.txt", sep="\t", dec=".", header=T) #ojo debe cambiar el ojbeto dependiendo de la zonificacion
+head(zon)
+
+# Kruskal-wallis test -------------------------------------------------------------------
+# esto se hace en línea con lo sugerido por Juli, donde me hace notar que es bueno evaluar diferencias significativas dentro de cada zonificiación
+
+zon.lev<-levels(factor(zon$zonif))
+aov.table<-data.frame(zon=NA, p.val=NA)
+boots<-rep(100,500)
+aov.list<-list()
+
+for (x in 1:length(zon.lev)) {
+
+  for(i in 1:length(boots)){
+    anova<-kruskal.test(slope ~ cat, data=zon |> 
+                          filter(zonif==zon.lev[x]) |> 
+                          sample_n(size=boots[i], replace=T))
+    
+    aov.table[i,1]<-zon.lev[x]
+    aov.table[i,2]<-format(anova$p.value, scientific = FALSE) |> 
+      as.numeric() |> 
+      round(digits=4)
+  }
+  aov.list[[x]]<-aov.table
+}
+
+aov.df<-as.data.frame(do.call(rbind, aov.list))
+
+aov.df |> 
+  summarise(p.val.median=median(p.val), p.val.mean=mean(p.val), .by=zon)
+
+aov.df |> 
+  ggplot(aes(x=p.val))+
+  geom_histogram()+
+  geom_vline(xintercept = 0.05)+
+  facet_wrap(~zon)
 
 zon |> 
 #  sample_n(size=200) |> 
   filter(z!=0) |> 
+  filter(zonif!="Mangroves") |> 
   ggplot(aes(x=cat, y=slope, fill=cat))+
-  geom_boxplot()+
+  geom_violin()+
+  geom_boxplot(width=0.1)+
   scale_fill_manual(values=c("#248f5d","#e5b636"))+
+  facet_wrap(~zonif, scales="free")+
   scale_y_continuous(trans="pseudo_log", limits=c(0, 35))+
-  facet_wrap(~zonif)+
-  geom_hline(yintercept= 2.318058,color="red",linetype = "dashed")+
-  geom_hline(yintercept = c(0,2,10,20), color="black") +
+   geom_hline(yintercept = c(0,2,10,20), color="black") +
   theme_classic()+
   labs(y="Pendiente del terreno")+
   theme(legend.position = "none",
@@ -796,11 +831,12 @@ zon |>
         axis.ticks.x = element_blank())
 
 ggsave(filename = "./outputs/slp_cat_biom.svg",
-       width = 15, #reg es 15 x 10
+       width = 22, #reg es 15 x 10
        height = 15, #alto 
        scale=1,
        units ="cm",
        dpi = 200)
+
 # Valores de pendiente dentro de C y T dentro de cada bioma
 zon |> 
   #  sample_n(size=200) |> 
@@ -812,7 +848,51 @@ zon |>
   geom_bar(stat='identity')+
   facet_wrap(~zonif, scales="free")
 
+#construccion de los kruskal para el total
+  
+  aov.table2<-data.frame(zon=NA, p.val=NA)
+  
+  for(i in 1:length(boots)){
+    anova<-kruskal.test(slope ~ cat, data=zon |> 
+                          sample_n(size=boots[i], replace=T))
+    
+    aov.table2[i,1]<-"total"
+    aov.table2[i,2]<-format(anova$p.value, scientific = FALSE) |> 
+      as.numeric() |> 
+      round(digits=4)
+  }
+  
+  aov.table2|> 
+    summarise(p.val.median=median(p.val), p.val.mean=mean(p.val))
+  
+  aov.table2 |> 
+    ggplot(aes(x=p.val))+
+    geom_histogram()
+  
+# Pendiente total ---------------------------------------------------------
 
+zon |> 
+    ggplot(aes(x=cat, y=slope, fill=cat))+
+    geom_violin()+
+    geom_boxplot(width=0.1)+
+    scale_fill_manual(values=c("#248f5d","#e5b636"))+
+    scale_y_continuous(trans="pseudo_log", limits=c(0, 35))+
+    geom_hline(yintercept = c(0,2,10,20), color="black")+
+    theme_classic()+
+    labs(y="Pendiente del terreno")+
+    theme(legend.position = "none",
+          axis.title.x = element_blank(),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank())
+  
+  ggsave(filename = "./outputs/slp_cat3.svg",
+         width = 10,
+         height = 10, #alto
+         scale=1,
+         units ="cm",
+         dpi = 200)
+  
+  
 # ------------------------------------------- Pendente por especie ----------------------------
 
 cat.dir.TC # dirección de las carpetas de categorias
