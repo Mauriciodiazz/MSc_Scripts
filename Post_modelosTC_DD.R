@@ -1,3 +1,5 @@
+# Packages
+
 library(biscale)
 library(ggpmisc)
 library(ggridges)
@@ -403,7 +405,17 @@ mx.slope |>
 
 TC.Z.dir<- list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/Riqueza/TC_s7/", pattern=".tif$", full.names = T) # Direcciones de la riqueza por categoría
 TC.Z.list<- list.files("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/Riqueza/TC_s7/", pattern=".tif$", full.names = F) # Lista de los nombres de los rasters de riqueza por categoría
+biomas<-vect("Provincias biogeograficas/Ecoregions2017_dinerstein/Biomas_2017_Dinerstein.shp")
 cat.dir.TC
+
+# Rasterizar biomas
+
+biomas[,3] |> 
+  plot()
+biomas$BIOME_NUM
+
+biomas.r<-
+  rasterize(biomas, mx.slope, field="BIOME_NUM")
 
 
 bl.stack.cat.TC<- rast(TC.Z.dir)
@@ -414,13 +426,25 @@ for(i in 1:length(cat.dir.TC)){
   # 1. convertir raster de riqueza por categorías en puntos
   cat.point<-as.points(bl.stack.cat.TC[[i]]) #contiene los rasters de riqueza por categoria
   # 2 Convertir tabla en un DF y guardarlo en una lista
+  
+  z.slp<-terra::extract(mx.slope, cat.point, bind=T)
+  
   cat.Z.list.TC[[i]]<-
+    terra::extract(biomas.r, z.slp, bind=T, xy=T) |> 
     # 2.1 Extraer los valores de pendiente por valor de riqueza
-    terra::extract(mx.slope, cat.point, bind=T, xy=T) |> 
     as.data.frame() |> 
     # 2.2 Agregar columna de categoría
     mutate(cat= cat.list.TC[i] |> 
-             str_sub(3,3)) |> 
+             str_sub(3,3),
+           BIOME_NAME= BIOME_NUM) |> 
+    mutate(BIOME_NAME= case_when(
+                         BIOME_NAME=="1"~"Tropical & Subtropical Moist Broadleaf Forests",
+                         BIOME_NAME=="12"~"Mediterranean Forests, Woodlands & Scrub",
+                         BIOME_NAME=="7"~"Tropical & Subtropical Grasslands, Savannas & Shrublands",
+                         BIOME_NAME=="2"~"Tropical & Subtropical Dry Broadleaf Forests",
+                         BIOME_NAME=="13"~"Deserts & Xeric Shrublands",
+                         BIOME_NAME=="3"~"Tropical & Subtropical Coniferous Forests",
+                         BIOME_NAME=="14"~"Mangroves")) |> 
     # 2.3 Renombrar variables
    dplyr::rename(z=sum, slope=slope_mx_g) |> 
     # 2.4 Reordenar
@@ -435,13 +459,12 @@ for(i in 1:length(cat.dir.TC)){
 
 #unirlos todos en un solo DF
 Z.slp.cats<-as.data.frame(do.call(rbind, cat.Z.list.TC)) #contiene todos los valores de pendiente por valor de riqueza en cada categoria
-#Z.slp.cats$count<-1 #agrego una columan de contador
+# Z.slp.cats$count<-1 #agrego una columan de contador
 
-#Z.slp.cats<-
+# Z.slp.cats<-
   Z.slp.cats |> 
   #elimino NA
-  na.omit() #|> write.table("./outputs/Z.slp.cats.txt", sep = "\t", dec=".", row.names = F)
-summary(Z.slp.cats) #verifico
+  na.omit() #|> write.table("./outputs/tablas/Z.slp.cats.txt", sep = "\t", dec=".", row.names = F)
 
 # valores de pendiente por pixel de riqueza
 Z.slp.cats<- read.table("F:/Maestria_DD/Shapes_MSc_DD/outputs/tablas/Z.slp.cats.txt", sep = "\t", dec=".", header=T)
@@ -746,7 +769,7 @@ spp_slp.join |>
 # Zonificación de la pendiente en T y C ------------------------------------
 
 reg.bio<-vect("Provincias biogeograficas/Regiones_biog/Regiones_biog.shp")
-biomas<-vect("Provincias biogeograficas/Ecoregions2017_dinerstein/Biomas_2017_Dinerstein.shp")
+biomas
 cat.rast<-rast("INEGI/Cambios/INEGI_VII_TC.tif")
 z.mx<-rast("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/Riqueza/Riqueza_MX.tif")
 mx.slope<- rast("F:/Maestria_DD/Shapes_MSc_DD/WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
@@ -782,9 +805,25 @@ head(zon)
 # esto se hace en línea con lo sugerido por Juli, donde me hace notar que es bueno evaluar diferencias significativas dentro de cada zonificiación
 
 zon.lev<-levels(factor(zon$zonif))
-aov.table<-data.frame(zon=NA, p.val=NA)
+aov.table.T<-data.frame(zon=NA, p.val=NA)
 boots<-rep(100,500)
-aov.list<-list()
+
+# Para todo el país
+for(i in 1:length(boots)){
+    anova<-kruskal.test(slope ~ cat, data=zon |> 
+                          sample_n(size=boots[i], replace=T))
+    
+    aov.table.T[i,1]<- "national"
+    aov.table.T[i,2]<-anova$p.value
+  }
+
+aov.table.T$p.val |> 
+  hist(breaks = 100) |> 
+  abline(v=c(0.05, 0.3012509,0.2101), col="red")
+
+poolr::bonferroni(aov.table$p.val)
+
+# Para los biomas
 
 for (x in 1:length(zon.lev)) {
 
@@ -794,17 +833,29 @@ for (x in 1:length(zon.lev)) {
                           sample_n(size=boots[i], replace=T))
     
     aov.table[i,1]<-zon.lev[x]
-    aov.table[i,2]<-format(anova$p.value, scientific = FALSE) |> 
-      as.numeric() |> 
-      round(digits=4)
+    aov.table[i,2]<-anova$p.value
   }
   aov.list[[x]]<-aov.table
 }
 
-aov.df<-as.data.frame(do.call(rbind, aov.list))
+as.data.frame(do.call(rbind, aov.list)) |> write.table("./outputs/tablas/kruskall_pvals.txt", sep="\t", dec=".", row.names=F)
+aov.df<-read.table("./outputs/tablas/kruskall_pvals.txt", sep="\t", dec=".", header=T)
 
 aov.df |> 
-  summarise(p.val.median=median(p.val), p.val.mean=mean(p.val), .by=zon)
+  summarise(p.val.median=median(p.val), 
+            p.val.mean=mean(p.val),
+            p.val.sig=length(which(p.val<0.05))*100/500,
+            p.val.nsig=length(which(p.val>0.05))*100/500,
+            p.val.fis=poolr::bonferroni(p.val)$p,.by=zon) |> 
+  select(zon, p.val.fis)
+# Usar la media de los valores P, es un machetazo muy denso. Hay y método de Fisher que permite combinar valores p (paquete survcomp)
+
+aov.df |> 
+  filter(zon=="Tropical & Subtropical Grasslands, Savannas & Shrublands") |> 
+  select(2) |> 
+  pull() |> 
+  poolr::bonferroni()
+
 
 aov.df |> 
   ggplot(aes(x=p.val))+
@@ -892,7 +943,7 @@ zon |>
          units ="cm",
          dpi = 200)
   
-  
+
 # ------------------------------------------- Pendente por especie ----------------------------
 
 cat.dir.TC # dirección de las carpetas de categorias
@@ -999,9 +1050,6 @@ spp_slp.join |>
   theme(axis.text.x = element_text(angle = 90),
         axis.title.x = element_blank())
   
-
-
-
 # cuantas especies se distribuyen debajo de la mediana de pendiente?
 
 #mediana de la pendiente de mexico
@@ -1175,7 +1223,6 @@ PAM.raster<-PAM$Richness_Raster
 # 2. Cargar y remuestrear el rasters a la resolución de la capa de riqueza ----------
 
 # Remuestrear pendiente ---------------------------------------------------
-
 mx.slope
 slope.3<-resample(mx.slope, PAM.raster, method="mode")
 

@@ -1,13 +1,14 @@
 # Analisis riqueza vs pendiente usando modelos lineales autoregresivos
-
 # Packages
+
 library(letsR) # lets.presab.points
 library(ncf)
 library(sf)
 library(spatialreg)
 library(spdep)
-library(tidyverse)
 library(terra)
+library(tidyverse)
+# Analisis riqueza vs pendiente usando modelos lineales autoregresivos
 
 # Mapa de riqueza a partir de raster con LetsR -----------------------------------------------
 # Esta parte del script realiza una PAM desde rasters, esto con el fin de establecer de manera más sencilla mapas de riqueza de diversa resolución  
@@ -44,132 +45,11 @@ spd.list.join<- as.data.frame(do.call(rbind, spd.list), row.names = NULL)
 # write.table(spd.list.join,"F:/Maestria_DD/spp.records_DD/specialists_DD/temporales/spp_PAM.txt", sep="\t", dec=".", row.names=F)
 head(spd.list.join)
 
-#Aqui voy a hacer lo mismo de arriba, pero la diferencia es que a cada área de distribución la voy a cortar para las zonas conservadas
-cons<-vect("INEGI/Cambios/TC_s7/C_disuelto_s7.shp")
+#### SAR para 10 puntos
+## NOTA: Esto se corre en el pc del lab
+#load("Scripts/codigoGLS/SAR_10k.Rdata")
 
-spd.list<-list()
-for(i in 1:length(ras.list)){
-  spd.list[[i]]<-rast(ras.dir[i]) |> 
-    #corto el raster al polígono de áreas conservadas
-    crop(cons,mask=T, touches=F, 
-         filename=paste0("F:/Maestria_DD/spp.records_DD/specialists_DD/spec.shapes_DD/Modelos_binarios/MB_Mex/MB_C/",ras.list[i],"_C.tif"),
-         overwrite=T) |> 
-    #convierto en un df
-    as.data.frame(xy=T) |> 
-    #le pongo una columna con el nombre de la spp
-    mutate(spp=ras.list[i]) |> 
-    #selecciono solo los valores de "presencia"
-    filter(.data[[names(rast(ras.dir[i]))]]==1) |> 
-    #elimino la columna con valores de 1
-    dplyr::select(-3)
-  names(spd.list)[i]<-ras.list[i]
-  print(ras.list[i])
-}
-
-## convierto la lista en un DF y lo guardo para optimizar tiempo
-as.data.frame(do.call(rbind, spd.list), row.names = NULL) |> 
-  write.table("./outputs/tablas/spp_PAM_C.txt", sep="\t", dec=".", row.names=F)
-head(spd.list.join)
-
-
-####
-
-library(tidyterra)
-mx.sp<-vect("./Mexico_Estados/Mexico_continent.shp")
-spd.list.join[1:2000,] |> 
-  ggplot(aes(x=x,y=y)) + 
-  geom_point()+
-  geom_spatvector(data=mx.sp, fill=NA)
-
-spd.list.join |> 
-  filter(x<(-115)) |> 
-  nrow()
-
-ggplot(mx.sp) + 
-  geom_spatvector()+
-  geom_point(data=spd.list.join |> 
-               filter(x<(-115)), 
-             aes(x=x,y=y))
-
-####
-# Cargo la tabla para optimizar tiempo
-#spd.list.join contiene las coordenadas de los centroides de los pixeles de distribución de cada especie
-spd.list.join<- read.table("./outputs/tablas/spp_PAM.txt",sep="\t", dec=".", header=T)
-head(spd.list.join)
-
-#Para poder hacer los modelos de regresión, es necesario crear un mapa de riqueza y con letsR puedo crear un mapa de riqueza apartir de una tabla de las coordanas de las especies (spd.list.join) 
-
-#1. Hay que crear la Matriz de presencia-ausencia PAM a partir de los puntos de presencia a una resolucion de 10km
-PAM<-lets.presab.points(xy= as.matrix(spd.list.join[,1:2]),
-                        species= spd.list.join$spp,
-                        xmn = -120,
-                        xmx = -85,
-                        ymn = 14,
-                        ymx = 33, 
-                        resol = 0.5) #10km 0.08333 / 30km 0.24999 /50km 0.41665
-
-x11()
-plot(PAM)
-summary(PAM)
-PAM.raster<-PAM$Richness_Raster
-
-# 2. Cargar y remuestrear el rasters a la resolución de la capa de riqueza ----------
-
-# Remuestrear pendiente ---------------------------------------------------
-
-slope<-rast("./WorldClim_30s/wc2.1_30s_elev/slope_mx_g_res.tif")
-slope.3<-resample(slope, PAM.raster, method="bilinear")
-
-# Remuetsrear áreas conservadas y transformadas --------------
-
-inegivii<-rast("./INEGI/Cambios/INEGI_VII_TC.tif")
-inegivii.3<-resample(inegivii, PAM.raster, method="mode")
-
-# 3. Extraer pendiente e inegi vii para cada pix de riqueza --------
-
-z.slp<-terra::extract(c(slope.3,inegivii.3, PAM.raster), 
-               as.points(PAM.raster), xy=T) |> 
-  na.omit()|> 
-  filter(lyr.1!=0)
-
-# ordenar columnas
-z.slp<-z.slp[,c(5,6,4,2,3)]
-names(z.slp)<-c("x","y","z","slope","cat")
-z.slp$cat<-as.character(z.slp$cat)
-z.slp$cat2<-z.slp$cat
-z.slp[which(z.slp$cat2==2),6]<-"T"
-z.slp[which(z.slp$cat2==1),6]<-"C"
-
-str(z.slp)
-levels(factor(z.slp$cat2))
-
-#write.table(z.slp, "./outputs/tablas/z.slp_05.txt", sep="\t", dec=".", row.names=F)
-z.slp<-read.table("./outputs/tablas/z.slp_05.txt", sep="\t", dec=".", header=T)
-head(z.slp)
-
-# OLS ---------------------------------------------------------------------
-
-# Primero, un modelo simple para observar si existe autocorrelación espacial
-
-lm.simple<- lm(z ~ slope*cat2,
-               data = z.slp)
-
-cor.lm.res <- correlog(z.slp$x, z.slp$y,
-                       z = residuals(lm.simple),
-                       na.rm = TRUE,
-                       increment = 1,
-                       resamp = 1)
-plot(cor.lm.res)
-
-### Existe autocorrelación espacial!
-
-
-# Modelos SAR  ------------------------------------------------------------
-# Estos modelos  incorporan la autocorrelación espacial a través de una lista de pesos según la cantidad de vecinos que tenga un pixel. De manera, que asume que aquellos pixeles con muchos vecinos, entonces tendrán un mayor valor de peso y por ende en esos lugares la relación y~x va a ser distinta.
-
-#Este método utiliza 3 tipos de pesos espaciales: c("W", "C", "S") y dos distancias (min y max), por lo tanto, hay que establecer 6 modelos Wmax, Wmin, Cmax, Cmin, etc. Y elegir cuál de ellos es el mejor a través de una evaluación con el AIC.
-
-# preparación de una función para correr con el modelo global y el de cada categoría. Esta función coje la base de datos y realiza los 6 modelos y extrae información importante para cada uno y realiza una tabla
+Z.slp.cats<- read.table("D:/Mauro/Msc/Otros/Z.slp.cats.txt", sep = "\t", dec=".", header=T)
 
 SAR_bucle<-function(data){
   #1. DF to contain the model results and AIC values
@@ -213,8 +93,12 @@ SAR_bucle<-function(data){
   # Spatial weigths creation ------------------------------------------------
   scheme <- c("W", "C", "S")
   
+  list.SAR.min<-list()
+  list.SAR.max<-list()
+  
   # 5. A bucle to do the six models
   for (i in 1:length(scheme)) {
+    start <- Sys.time()
     # Spatial weights
     sw_min <- nb2listw(d_min, zero.policy = TRUE, style = scheme[i]) 
     sw_max <- nb2listw(d_max, zero.policy = TRUE, style = scheme[i]) 
@@ -274,231 +158,426 @@ SAR_bucle<-function(data){
     results_g$Imoran[i]<- moran(data$z,  sw_min, length(k1), Szero(sw_min))$I
     results_g$Imoran[i+3]<- moran(data$z,  sw_max, length(k1), Szero(sw_max))$I
     
+    list.SAR.min[[i]]<-error_min #save each model into a list
+    list.SAR.max[[i]]<-error_max #save each model into a list
+    print(Sys.time() - start ) #¿What is the timing of each iteration?
   }
-  
-  #6. returning the results in AIC order
-  return(results_g |> 
-           arrange(AIC)) 
-  
+  names(list.SAR.min)<-scheme
+  names(list.SAR.max)<-scheme
+  #6. returning the results in AIC order and save each model list into a list
+  return(list(min=list.SAR.min,max=list.SAR.max,results=arrange(results_g, AIC))) 
 }
 
-# Como ya se cuales son los mejores modelos, los voy a correr cada uno para los graficos y las tablas
-
-# Modelo Global -----------------------------------------------------------
-
-lm.g<- lm(z ~ slope,
-               data = z.slp)
-
-SAR_bucle(z.slp)
-#Mejor modelo global= max_w
+z.slp.sample.Tot<-
+  Z.slp.cats |> 
+  sample_n(size=10000,replace=F) # replace=F para que no se repita la selección de las filas, es decir, no se sobreestime la pendiente por celdas repetidas
 
 
-sp_g <- st_as_sf( x = z.slp, 
-                coords = c("x","y"),
-                crs = 4326)
+SAR_res_10k.Tot<-
+  z.slp.sample.Tot |> 
+  SAR_bucle()
 
-k1_g = knn2nb(knearneigh(sp_g, k = 1))
+SAR_res_10k.Tot[["results"]] #best model: MAX-W
+SAR_res_10k.Tot[["max"]]["W"] #best model
 
+z.slp.sample.C<-
+  Z.slp.cats |> 
+  filter(cat=="C") |> 
+  sample_n(size=10000,replace=F)
 
-dist_g <- unlist(nbdists(k1_g, sp_g, longlat = T))
+SAR_res_10k.C<-
+  z.slp.sample.C |> 
+  SAR_bucle()
 
-max1_g <- max(dist_g)
+SAR_res_10k.C[["results"]] #best model: MAX-W
+SAR_res_10k.C[["max"]]["W"] #best model
 
-d_max_g <- dnearneigh(sp_g, longlat = F, d1 = 0, d2 = max1_g)
-
-sw_max_g <- nb2listw(d_max_g, zero.policy = TRUE, style = "W") 
-
-# SAR
-error_max_g <- spatialreg::errorsarlm(
-  z ~ slope,
-  data = z.slp,
-  listw = sw_max_g,
-  tol = 1e-12, 
-  zero.policy = TRUE)
-
-summary(error_max_g, Nagelkerke=TRUE)
-
-plot(z.slp$slope, z.slp$z)
-
-# Modelo para C -----------------------------------------------------------
-C<-
-  z.slp |> 
-  filter(cat2=="C")
-
-lm.c<- lm(z ~ slope,
-               data = C)
-
-SAR_bucle(C)
-
-#Mejor modelo para C= min_w
-
-sp_c <- st_as_sf( x = C, 
-                  coords = c("x","y"),
-                  crs = 4326)
-
-k1_c = knn2nb(knearneigh(sp_c, k = 1)) 
-
-
-dist_c <- unlist(nbdists(k1_c, sp_c, longlat = T))
-
-max1_c <- max(dist_c)
-
-d_max_c <- dnearneigh(sp_c, longlat = F, d1 = 0, d2 = max1_c)
-
-sw_max_c <- nb2listw(d_max_c, zero.policy = TRUE, style = "W") 
-
-# SAR
-error_max_c <- spatialreg::errorsarlm(
-  z ~ slope,
-  data = C,
-  listw = sw_max_c,
-  tol = 1e-12, 
-  zero.policy = TRUE)
-
-summary(error_max_c, Nagelkerke=TRUE)
-
-z~slope*cat2
-
-# 
-# # Modelo para T -----------------------------------------------------------
-# Tr<-
-#   z.slp |> 
-#   filter(cat2=="T")
-# 
-# lm.t<- lm(z ~ slope,
-#           data = Tr)
-# 
-# SAR_bucle(Tr)
-# 
-# #Mejor modelo para C= max_w
-# 
-# sp_t <- st_as_sf( x = Tr, 
-#                   coords = c("x","y"),
-#                   crs = '+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs')
-# 
-# k1_t = knn2nb(knearneigh(sp_t, k = 1)) 
-# 
-# 
-# dist_t <- unlist(nbdists(k1_t, sp_t))
-# 
-# min1_t <- min(dist_t)
-# 
-# d_min_t <- dnearneigh(sp_t, longlat = F, d1 = 0, d2 = min1_t)
-# 
-# sw_min_t <- nb2listw(d_min_t, zero.policy = TRUE, style = "W") 
-# 
-# # SAR
-# error_min_t <- spatialreg::errorsarlm(
-#   z ~ slope,
-#   data = Tr,
-#   listw = sw_min_t,
-#   tol = 1e-12, 
-#   zero.policy = TRUE)
-# 
-# summary(error_min_t, Nagelkerke=TRUE)
+# #Esto genera muestreos aleatorios i veces
+# l.SAR<-list()
+# for (i in 1:5) {
+# 	print(i)
+# 	z.slp.sample<-
+# 		Z.slp.cats |> 
+# 		filter(cat=="C") |> 
+# 		sample_n(size=100,replace=F)
+# 	
+# 	#l.SAR[[i]]<-
+# 		z.slp.sample |> 
+# 		SAR_bucle()
+# 	print(i)
+# }
 
 
 # Correlograms for OLS and SAR models ------------------------------------------------
-error_max_g
-error_max_c
-#error_min_t ya no va 
+# best model total area
+SAR_res_10k.Tot[["max"]]["W"] #best model
+# best model conserved area
+SAR_res_10k.C[["max"]]["W"] #best model
 
-lm.g
-lm.c
-#lm.t ya no va 
-
-
-# correlograma global ----------------------------------------------------
 # OLS
-cor.ols.g <- correlog(z.slp$x, z.slp$y,
-                         z = residuals(lm.g),
-                         na.rm = TRUE,
-                         increment = 1,
-                         resamp = 1)
-# SAR
-cor.sar.g <- correlog(z.slp$x, z.slp$y,
-                         z = residuals(error_min_g),
-                         na.rm = TRUE,
-                         increment = 1,
-                         resamp = 1)
+lm.g<- lm(z ~ slope,
+          data = z.slp.sample.Tot)
 
-# Correlograma para C -----------------------------------------------------
+lm.c<- lm(z ~ slope,
+          data = z.slp.sample.C)
+
+hist(residuals(lm.c))
+z.slp.sample.C |> 
+  ggplot(aes(x=x,y=y, color=z))+
+  geom_point(size=0.4)
+
+
+# 1. Correlograma global ----------------------------------------------------
 # OLS
-cor.ols.c <- correlog(C$x, C$y,
-                         z = residuals(lm.c),
-                         na.rm = TRUE,
-                         increment = 1,
-                         resamp = 1)
+cor.ols.g <- correlog(z.slp.sample.Tot$x, z.slp.sample.Tot$y,
+                      z = residuals(lm.g),
+                      na.rm = TRUE,
+                      increment = 1,
+                      resamp = 1)
 # SAR
-cor.sar.c <- correlog(C$x, C$y,
-                         z = residuals(error_max_c),
-                         na.rm = TRUE,
-                         increment = 1,
-                         resamp = 1)
+cor.sar.g <- correlog(z.slp.sample.Tot$x, z.slp.sample.Tot$y,
+                      z = residuals(SAR_res_10k.Tot[["max"]]["W"]$W),
+                      na.rm = TRUE,
+                      increment = 1,
+                      resamp = 1)
 
-# # Correlograma para T ---------------------------------------------------
-# # OLS
-# cor.ols.t <- correlog(Tr$x, Tr$y,
-#                          z = residuals(lm.t),
-#                          na.rm = TRUE,
-#                          increment = 1,
-#                          resamp = 1)
-# # SAR
-# cor.sar.t <- correlog(Tr$x, Tr$y,
-#                          z = residuals(error_min_t),
-#                          na.rm = TRUE,
-#                          increment = 1,
-#                          resamp = 1)
+# 2. Correlograma para C -----------------------------------------------------
+# OLS
+cor.ols.c <- correlog(z.slp.sample.C$x, z.slp.sample.C$y,
+                      z = residuals(lm.c),
+                      na.rm = TRUE,
+                      increment = 1,
+                      resamp = 1)
+# SAR
+cor.sar.c <- correlog(z.slp.sample.C$x, z.slp.sample.C$y,
+                      z = residuals(SAR_res_10k.C[["max"]]["W"]$W),
+                      na.rm = TRUE,
+                      increment = 1,
+                      resamp = 1)
+
 
 par(mfrow=c(2,2))
 
-plot(cor.ols.g, main="Correlación global OLS", ylim=c(-3,1), ylab="Correlación", xlab="Distancia (Clase de distancia)")
+plot(cor.ols.g, main="National correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
-plot(cor.sar.g, main="Correlación global SAR", ylim=c(-3,1), ylab="Correlación", xlab="Distancia (Clase de distancia)")
-abline(h=0, col="red")
-
-plot(cor.ols.c, main="Correlación áreas conservadas OLS", ylim=c(-3,1), 
-     ylab="Correlación", xlab="Distancia (Clase de distancia)")
-abline(h=0, col="red")
-plot(cor.sar.c, main="Correlación áreas conservadas SAR", ylim=c(-3,1),
-     ylab="Correlación", xlab="Distancia (Clase de distancia)")
+plot(cor.sar.g, main="National correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
 
-# plot(cor.ols.t, main="OLS transformed areas correlation", ylim=c(-3,1))
-# abline(h=0, col="red")
-# plot(cor.sar.t, main="SAR transformed areas correlation", ylim=c(-3,1))
-# abline(h=0, col="red")
+plot(cor.ols.c, main="Conserved areas correlation OLS", ylim=c(-3,1), 
+     ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.c, main="Conserved areas correlation SAR", ylim=c(-3,1),
+     ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
 
 par(mfrow=c(1,1))
 
+# SAR para los biomas ------------------------------------------------------
+Z.slp.cats #riqueza + slope + biomas en C y T
 
+# cuántos pixeles hay por cada bioma?
+Z.slp.cats |> 
+  filter(cat=="C") |> 
+  filter(BIOME_NAME!="Mangroves") |> 
+  summarise(count=n(), .by=BIOME_NAME)
 
-# Points graph linear models -----------------------------------------------
+# Mediterranean Forests, Woodlands & Scrub (MFWS)- 7576 ----
+mfws<-
+  Z.slp.cats |> 
+  filter(cat=="C") |> 
+  filter(BIOME_NAME=="Mediterranean Forests, Woodlands & Scrub")
 
-summary(error_max_g, Nagelkerke=TRUE)
-summary(error_max_c, Nagelkerke=TRUE)
+mfws.list<-
+  mfws |> 
+  SAR_bucle()
+
+mfws.list[["results"]] #best model: MAX-s
+mfws.list[["max"]]["S"] #best model
+# Correlograma para mfws -----------------------------------------------------
+
+lm.mfws<-
+  lm(z ~ slope,
+     data = mfws)
+
+# OLS
+cor.ols.mfws<- correlog(mfws$x, mfws$y,
+                        z = residuals(lm.mfws),
+                        na.rm = TRUE,
+                        increment = 1,
+                        resamp = 1)
+# SAR
+cor.sar.mfws <- correlog(mfws$x, mfws$y,
+                         z = residuals(mfws.list[["max"]]["S"]$S),
+                         na.rm = TRUE,
+                         increment = 1,
+                         resamp = 1)
+
+plot(cor.ols.mfws, main="MFWS correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.mfws, main="MFWS correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+# Deserts & Xeric Shrublands (DXS) - 181229 ----
+dxs<-
+  Z.slp.cats |> 
+  filter(cat=="C") |> 
+  filter(BIOME_NAME=="Deserts & Xeric Shrublands") |> 
+  sample_n(size=10000,replace=F)
+head(dxs)
+
+dxs.list<-
+  dxs |> 
+  SAR_bucle()
+
+dxs.list[["results"]] #best model: MAX-W
+dxs.list[["max"]]["W"] #best model
+# Correlograma para dxs -----------------------------------------------------
+
+lm.dxs<-
+  lm(z ~ slope,
+     data = dxs)
+
+# OLS
+cor.ols.dxs<- correlog(dxs$x, dxs$y,
+                       z = residuals(lm.dxs),
+                       na.rm = TRUE,
+                       increment = 1,
+                       resamp = 1)
+# SAR
+cor.sar.dxs <- correlog(dxs$x, dxs$y,
+                        z = residuals(dxs.list[["max"]]["W"]$W),
+                        na.rm = TRUE,
+                        increment = 1,
+                        resamp = 1)
+
+plot(cor.ols.dxs, main="dxs correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.dxs, main="dxs correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+# Tropical & Subtropical Coniferous Forests (tscf) 271629 ----
+tscf<-
+  Z.slp.cats |> 
+  filter(cat=="C") |> 
+  filter(BIOME_NAME=="Tropical & Subtropical Coniferous Forests") |> 
+  sample_n(size=10000,replace=F)
+head(tscf)
+
+tscf.list<-
+  tscf |> 
+  SAR_bucle()
+
+tscf.list[["results"]] #best model: MAX-W
+tscf.list[["max"]]["W"] #best model
+# Correlograma para tscf -----------------------------------------------------
+
+lm.tscf<-
+  lm(z ~ slope,
+     data = tscf)
+
+# OLS
+cor.ols.tscf<- correlog(tscf$x, tscf$y,
+                        z = residuals(lm.tscf),
+                        na.rm = TRUE,
+                        increment = 1,
+                        resamp = 1)
+# SAR
+cor.sar.tscf <- correlog(tscf$x, tscf$y,
+                         z = residuals(tscf.list[["max"]]["W"]$W),
+                         na.rm = TRUE,
+                         increment = 1,
+                         resamp = 1)
+
+plot(cor.ols.tscf, main="tscf correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tscf, main="tscf correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+# Tropical & Subtropical Dry Broadleaf Forests (TSDBF)  95749 ----
+tsdbf<-
+  Z.slp.cats |> 
+  filter(cat=="C") |> 
+  filter(BIOME_NAME=="Tropical & Subtropical Dry Broadleaf Forests") |> 
+  sample_n(size=10000,replace=F)
+head(tsdbf)
+
+tsdbf.list<-
+  tsdbf |> 
+  SAR_bucle()
+
+tsdbf.list[["results"]] #best model: MAX-W
+tsdbf.list[["max"]]["W"] #best model
+# Correlograma para tsdbf -----------------------------------------------------
+
+lm.tsdbf<-
+  lm(z ~ slope,
+     data = tsdbf)
+
+# OLS
+cor.ols.tsdbf<- correlog(tsdbf$x, tsdbf$y,
+                         z = residuals(lm.tsdbf),
+                         na.rm = TRUE,
+                         increment = 1,
+                         resamp = 1)
+# SAR
+cor.sar.tsdbf <- correlog(tsdbf$x, tsdbf$y,
+                          z = residuals(tsdbf.list[["max"]]["W"]$W),
+                          na.rm = TRUE,
+                          increment = 1,
+                          resamp = 1)
+
+plot(cor.ols.tsdbf, main="tsdbf correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tsdbf, main="tsdbf correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+#  Tropical & Subtropical Grasslands, Savannas & Shrublands (TSGSS)   1908 ----
+
+tsgss<-
+  Z.slp.cats |> 
+  filter(cat=="C") |> 
+  filter(BIOME_NAME=="Tropical & Subtropical Grasslands, Savannas & Shrublands")
+head(tsgss)
+
+tsgss.list<-
+  tsgss |> 
+  SAR_bucle()
+
+tsgss.list[["results"]] #best model: MAX-W
+tsgss.list[["max"]]["W"] #best model
+# Correlograma para tsgss -----------------------------------------------------
+
+lm.tsgss<-
+  lm(z ~ slope,
+     data = tsgss)
+
+# OLS
+cor.ols.tsgss<- correlog(tsgss$x, tsgss$y,
+                         z = residuals(lm.tsgss),
+                         na.rm = TRUE,
+                         increment = 1,
+                         resamp = 1)
+# SAR
+cor.sar.tsgss <- correlog(tsgss$x, tsgss$y,
+                          z = residuals(tsgss.list[["max"]]["W"]$W),
+                          na.rm = TRUE,
+                          increment = 1,
+                          resamp = 1)
+
+plot(cor.ols.tsgss, main="tsgss correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tsgss, main="tsgss correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+# Tropical & Subtropical Moist Broadleaf Forests (TSMBF)  80398 ----
+tsmbf<-
+  Z.slp.cats |> 
+  filter(cat=="C") |> 
+  filter(BIOME_NAME=="Tropical & Subtropical Dry Broadleaf Forests") |> 
+  sample_n(size=10000,replace=F)
+head(tsmbf)
+
+tsmbf.list<-
+  tsmbf |> 
+  SAR_bucle()
+
+tsmbf.list[["results"]] #best model: MAX-W
+tsmbf.list[["max"]]["W"] #best model
+# Correlograma para tsmbf -----------------------------------------------------
+
+lm.tsmbf<-
+  lm(z ~ slope,
+     data = tsmbf)
+
+# OLS
+cor.ols.tsmbf<- correlog(tsmbf$x, tsmbf$y,
+                         z = residuals(lm.tsmbf),
+                         na.rm = TRUE,
+                         increment = 1,
+                         resamp = 1)
+# SAR
+cor.sar.tsmbf <- correlog(tsmbf$x, tsmbf$y,
+                          z = residuals(tsmbf.list[["max"]]["W"]$W),
+                          na.rm = TRUE,
+                          increment = 1,
+                          resamp = 1)
+
+plot(cor.ols.tsmbf, main="tsmbf correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tsmbf, main="tsmbf correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+# Todos en el mismo plot
+par(mfrow=c(3,4))
+
+plot(cor.ols.mfws, main="MFWS correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.mfws, main="MFWS correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+plot(cor.ols.dxs, main="DXS correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.dxs, main="DXS correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+plot(cor.ols.tscf, main="TSCF correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tscf, main="TSCF correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+plot(cor.ols.tsdbf, main="TSDBF correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tsdbf, main="TSDBF correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+plot(cor.ols.tsgss, main="TSGSS correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tsgss, main="TSGSS correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+plot(cor.ols.tsmbf, main="TSMBF correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tsmbf, main="TSMBF correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+# Points graph linear models Tot-C -----------------------------------------------
+Z.slp.cats
+
+# Best models
+
+# Total
+SAR_res_10k.Tot[["results"]] #max - W
+summary(SAR_res_10k.Tot[["max"]]["W"]$W, Nagelkerke=TRUE)
+
+# Conserved
+SAR_res_10k.C[["results"]] #max - W
+summary(SAR_res_10k.C[["max"]]["W"]$W, Nagelkerke=TRUE)
+
 #summary(error_min_t, Nagelkerke=TRUE) Este ya no va
 
+confint(bes.tot, level=0.95)
+
 slp_z_g<-
-z.slp |> 
+z.slp.sample.Tot |> 
   ggplot(aes(y=z, x=slope))+
   geom_point()+
-  geom_abline(aes(intercept=6.422968, slope=1.656030), color="#000000") +
-  annotate(geom="text", x=2, y=37, label="y = 1.66x + 6.42", color="black", fontface = 'bold')+
-  labs(x="Pendiente del terreno", y="Riqueza de especies") +
+  geom_abline(aes(intercept=2.536156, slope=0.471712), color="red") +
+  annotate(geom="text", x=20, y=30, 
+           label=expression(atop("y=0.47x + 2.54",
+                                 paste(italic("p"),"-value<2.2e-16"))))+
+  labs(x="Terrain slope", y="Richness") +
   theme_classic()
 
 slp_z_cat<-
-z.slp |> 
-  filter(cat2=="C") |> 
-  ggplot(aes(y=z, x=slope, color=cat2))+
+z.slp.sample.C |> 
+  ggplot(aes(y=z, x=slope, color=cat))+
   geom_point()+
-  geom_abline(aes(intercept=4.70728, slope=1.87103), color="#248f5d") +
-#  geom_abline(aes(intercept=3.85030, slope=1.68200), color="#e5b636") +
-  annotate(geom="text", x=2, y=37, label="y = 1.87x + 4.70", color="#248f5d", fontface = 'bold')+
- # annotate(geom="text", x=3, y=35, label="y = 1.68 x + 3.85", color="#e5b636")+
+  geom_abline(aes(intercept=2.5060748, slope=0.2571645), color="red") +
+  annotate(geom="text", x=25, y=28, 
+           label=expression(atop("y=0.26x + 2.51",
+                           paste(italic("p"),"-value<2.2e-16"))))+
   scale_color_manual(values=c("#248f5d"), labels = c("Conservado"))+
-  labs(x="Pendiente del terreno", y="Riqueza de especies", color="Categorias") +
+  labs(x="Terrain slope", y="Richness", color="Categorias") +
   theme_classic()+
   theme(axis.title.y = element_blank(),
         legend.position = "none")
@@ -506,12 +585,154 @@ z.slp |>
 #library(patchwork)
 slp_z_g + slp_z_cat + plot_annotation(tag_levels = 'A')
 
-ggsave(filename = "./outputs/SAR_zxslp.svg",
+ggsave(filename = "./outputs/SAR_zxslp.png",
        width = 20,
        height = 10, #alto
        scale=1,
        units ="cm",
        dpi = 200)
+
+# Points graph linear models biomes -----------------------------------------------
+
+# DXS: Desiertos y matorrales xerófilos
+dxs.list[["results"]] #max-W
+dxs.list[["max"]][["W"]] |> summary()
+
+plot.dxs<-
+  dxs |> 
+  ggplot(aes(y=z, x=slope))+
+  geom_point()+
+  geom_abline(aes(intercept=1.4589790, slope=0.1821844), color="red") +
+  annotate(geom="text", x=21, y=14.5, 
+           label=expression(atop("y=0.18x + 1.46",
+                                 paste(italic("p"),
+                                       "-value<2.2e-16"))), 
+           parse=T, size=3.8)+
+  labs(x="Terrain slope", y="Richness", color="Categorias", 
+       title="Deserts and xeric shrublands") +
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.x = element_blank())
+
+
+# MFWS: Mediterranean forests, woodlands, and scrub
+mfws.list[["results"]] #max-S
+mfws.list[["max"]][["S"]] |> summary()
+
+plot.mfws<-
+mfws |> 
+  ggplot(aes(y=as.character(z), x=slope))+
+  geom_point()+
+  geom_abline(aes(intercept=1.01114942, slope=-0.00074703), color="red") +
+  annotate(geom="text", x=18, y=2.3, 
+           label=expression(atop("y=-0.0007x + 1.01",
+                                 paste(italic("p"),"-value=0.34"))), 
+           parse=T, size=3.8)+
+  labs(x="Terrain slope", y="Richness", color="Categorias", 
+       title=expression(atop("Mediterranean forests,","woodlands, and scrub"))) +
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank())
+
+# TSDBF: Tropical and subtropical dry broadleaf forests
+tsdbf.list[["results"]] #max-W
+tsdbf.list[["max"]][["W"]] |> summary()
+
+plot.tsdbf<-
+  tsdbf |> 
+  ggplot(aes(y=z, x=slope))+
+  geom_point()+
+  geom_abline(aes(intercept=5.389625, slope=0.168228), color="red") +
+  annotate(geom="text", x=25, y=24, 
+           label=expression(atop("y=0.17x + 5.39",
+                                 paste(italic("p"),"-value<2.2e-16"))), 
+           parse=T, size=3.8)+
+  xlim(0, 33) +  ylim(0, 28) +
+  labs(x="Terrain slope", y="Richness", color="Categorias", 
+       title=expression(atop("Tropical and subtropical", "dry broadleaf forests"))) +
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank())
+
+# TSCF: Bosques de coníferas tropicales y subtropicales
+tscf.list[["results"]] #max-W
+tscf.list[["max"]][["W"]] |> summary()
+
+plot.tscf<-
+tscf |> 
+  ggplot(aes(y=z, x=slope))+
+  geom_point()+
+  geom_abline(aes(intercept=4.2231219, slope=0.0948695), color="red") +
+  annotate(geom="text", x=24, y=25, 
+           label=expression(atop("y=0.09x + 4.22",
+                                 paste(italic("p"),"-value<2.2e-16"))), 
+           parse=T, size=3.8)+
+  xlim(0, 30) +  ylim(0, 28) +
+  labs(x="Terrain slope", y="Richness", color="Categorias", 
+       title=expression(atop("Tropical and subtropical", "coniferous forests"))) +
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))
+
+# TSMBF: Tropical and subtropical moist broadleaf forests
+tsmbf.list[["results"]] #max-W
+tsmbf.list[["max"]][["W"]] |> summary()
+
+plot.tsmbf<-
+  tsmbf |> 
+  ggplot(aes(y=z, x=slope))+
+  geom_point()+
+  geom_abline(aes(intercept=4.8305362, slope=0.1640939), color="red") +
+  annotate(geom="text", x=25, y=24, 
+           label=expression(atop("y=0.16x + 4.83",
+                                 paste(italic("p"),"-value<2.2e-16"))),
+           parse=T, size=3.8)+
+  xlim(0, 32) +  ylim(0, 28) +
+  labs(x="Terrain slope", y="Richness", color="Categorias", 
+       title=expression(atop("Tropical and subtropical moist", "broadleaf forests"))) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.y = element_blank())
+
+# TSGSS: Tropical and subtropical grasslands
+tsgss.list[["results"]] #max-W
+tsgss.list[["max"]][["W"]] |> summary()
+
+plot.tsgss<-
+tsgss |> 
+  ggplot(aes(y=as.character(z), x=slope))+
+  geom_point()+
+  geom_abline(aes(intercept=2.133589, slope=0.098550), color="red") +
+  annotate(geom="text", x=1.5, y=3, 
+           label=expression(atop("y=0.1x + 2.13",
+                                 paste(italic("p"),"-value=0.01"))),
+           parse=T, size=3.8)+
+  labs(x="Terrain slope", y="Richness", color="Categorias", 
+       title=expression(atop("Tropical and subtropical grasslands,", "savannas and shrublands"))) +
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.y = element_blank())
+
+plot.dxs + plot.mfws + plot.tsdbf + plot.tscf + plot.tsmbf + plot.tsgss
+
+ggsave(filename = "./outputs/SAR_biomes.png",
+       width = 20,
+       height = 10, #alto
+       scale=2,
+       units ="cm",
+       dpi = 200)
+
+(slp_z_g + slp_z_cat ) / (plot.dxs + plot.mfws + plot.tsdbf + plot.tscf + plot.tsmbf + plot.tsgss) + plot_annotation(tag_levels = list(c('A', 'B', 'C')))
+
+ggsave(filename = "./outputs/SAR_merged.png",
+       width = 13,
+       height = 15, #alto
+       scale=2,
+       units ="cm",
+       dpi = 200)
+
+#save.image("./Scripts/codigoGLS/SAR_10k.Rdata")
 
 # FIN DEL SCRIPT
 

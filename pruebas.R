@@ -1,60 +1,48 @@
 
 
 
-sp_g <- read_sf("F:/Maestria_DD/Shapes_MSc_DD/borrar/prueba_SAR.shp")
-  # st_as_sf( x = z.slp, 
-  #                 coords = c("x","y"),
-  #                 crs = '+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs')
-write_sf(sp_g,"F:/Maestria_DD/Shapes_MSc_DD/borrar/prueba_SAR2.shp")
-
-k1_g = knn2nb(knearneigh(sp_g, k = 1)) #establece cuáles son los vecinos según el k. El warning es porque hay puntos que no tienen los 5 vecinos (pe, las esquinas)
-
-#dist_g <- 
-  nbdists(k1_g, sp_g, longlat = T) #|> unlist()
-
-min1_g <- min(dist_g)
-
-d_min_g <- dnearneigh(sp_g, longlat = F, d1 = 0, d2 = min1_g)
-
-sw_min_g <- nb2listw(d_min_g, zero.policy = TRUE, style = "W") 
-
-# SAR
-error_min_g <- spatialreg::errorsarlm(
-  z ~ slope,
-  data = z.slp,
-  listw = sw_min_g,
-  tol = 1e-12, 
-  zero.policy = TRUE)
-
-summary(error_min_g, Nagelkerke=TRUE)
-
-plot(z.slp$slope, z.slp$z)
 
 
 
-lets.correl(residuals(lm.g), 
-            lets.distmat(as.matrix(z.slp[,1:2])), 12,
-            equidistant = FALSE, 
-            plot = TRUE)
-lets.correl(residuals(error_min_g), 
-            lets.distmat(as.matrix(z.slp[,1:2])), 12,
-            equidistant = FALSE, 
-            plot = TRUE)
 
 
-lets.correl(residuals(lm.c), 
-            lets.distmat(as.matrix(C[,1:2])), 12,
-            equidistant = FALSE, 
-            plot = TRUE)
-lets.correl(residuals(error_min_c), 
-            lets.distmat(as.matrix(C[,1:2])), 12,
-            equidistant = FALSE, 
-            plot = TRUE)
 
 
-correlog(z.slp$x, z.slp$y,
-         z = residuals(error_min_g),
-         na.rm = TRUE,
-         increment = 1,
-         resamp = 1)
+
+
+
+
+
+
+
+
+
+predict(lm.g, z.slp.sample.Tot, interval = "confidence", level = 0.95)
+
+predict(bes.tot, newdata = z.slp.sample.Tot) |>  # Predicciones del modelo ajustado
+  data.frame() |> head()
+
+# Error estándar de las predicciones (aproximación)
+se_pred <- sqrt(diag(vcov(bes.tot)))  # Extraer la matriz de varianza-covarianza
+alpha <- 0.05  # Nivel de confianza del 95%
+
+
+z_value <- qnorm(1 - alpha / 2)  # Valor crítico para el 95% (aproximadamente 1.96)
+lower_bound <- predictions$trend - z_value * se_pred
+upper_bound <- predictions$trend + z_value * se_pred
+
+plot_data <- data.frame(
+  x = z.slp.sample.Tot$slope,  # Variable independiente en el eje X
+  fit = predictions$trend,       # Predicciones ajustadas
+  lower = lower_bound,     # Límite inferior del intervalo de confianza
+  upper = upper_bound      # Límite superior del intervalo de confianza
+)
+
+ggplot(plot_data, aes(x = x, y = fit)) +
+  geom_line(color = "blue", size = 1) +  # Línea ajustada (predicción)
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightgray") +  # Intervalos de confianza
+  labs(title = "Predicción con Intervalos de Confianza",
+       x = "Variable Independiente",
+       y = "Variable Dependiente") +
+  theme_minimal()
 
