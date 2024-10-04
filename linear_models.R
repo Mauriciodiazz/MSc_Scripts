@@ -281,42 +281,6 @@ Z.slp.cats |>
   filter(BIOME_NAME!="Mangroves") |> 
   summarise(count=n(), .by=BIOME_NAME)
 
-# Mediterranean Forests, Woodlands & Scrub (MFWS)- 7576 ----
-mfws<-
-  Z.slp.cats |> 
-  filter(cat=="C") |> 
-  filter(BIOME_NAME=="Mediterranean Forests, Woodlands & Scrub")
-
-mfws.list<-
-  mfws |> 
-  SAR_bucle()
-
-mfws.list[["results"]] #best model: MAX-s
-mfws.list[["max"]]["S"] #best model
-# Correlograma para mfws -----------------------------------------------------
-
-lm.mfws<-
-  lm(z ~ slope,
-     data = mfws)
-
-# OLS
-cor.ols.mfws<- correlog(mfws$x, mfws$y,
-                        z = residuals(lm.mfws),
-                        na.rm = TRUE,
-                        increment = 1,
-                        resamp = 1)
-# SAR
-cor.sar.mfws <- correlog(mfws$x, mfws$y,
-                         z = residuals(mfws.list[["max"]]["S"]$S),
-                         na.rm = TRUE,
-                         increment = 1,
-                         resamp = 1)
-
-plot(cor.ols.mfws, main="MFWS correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
-abline(h=0, col="red")
-plot(cor.sar.mfws, main="MFWS correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
-abline(h=0, col="red")
-
 # Deserts & Xeric Shrublands (DXS) - 181229 ----
 dxs<-
   Z.slp.cats |> 
@@ -355,43 +319,42 @@ abline(h=0, col="red")
 plot(cor.sar.dxs, main="dxs correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
 
-# Tropical & Subtropical Coniferous Forests (tscf) 271629 ----
-tscf<-
+# Mediterranean Forests, Woodlands & Scrub (MFWS)- 7576 ----
+mfws<-
   Z.slp.cats |> 
   filter(cat=="C") |> 
-  filter(BIOME_NAME=="Tropical & Subtropical Coniferous Forests") |> 
-  sample_n(size=10000,replace=F)
-head(tscf)
+  filter(BIOME_NAME=="Mediterranean Forests, Woodlands & Scrub")
 
-tscf.list<-
-  tscf |> 
+mfws.list<-
+  mfws |> 
   SAR_bucle()
 
-tscf.list[["results"]] #best model: MAX-W
-tscf.list[["max"]]["W"] #best model
-# Correlograma para tscf -----------------------------------------------------
+mfws.list[["results"]] #best model: MAX-s
+mfws.list[["max"]]["S"] #best model
+# Correlograma para mfws -----------------------------------------------------
 
-lm.tscf<-
+lm.mfws<-
   lm(z ~ slope,
-     data = tscf)
+     data = mfws)
 
 # OLS
-cor.ols.tscf<- correlog(tscf$x, tscf$y,
-                        z = residuals(lm.tscf),
+cor.ols.mfws<- correlog(mfws$x, mfws$y,
+                        z = residuals(lm.mfws),
                         na.rm = TRUE,
                         increment = 1,
                         resamp = 1)
 # SAR
-cor.sar.tscf <- correlog(tscf$x, tscf$y,
-                         z = residuals(tscf.list[["max"]]["W"]$W),
+cor.sar.mfws <- correlog(mfws$x, mfws$y,
+                         z = residuals(mfws.list[["max"]]["S"]$S),
                          na.rm = TRUE,
                          increment = 1,
                          resamp = 1)
 
-plot(cor.ols.tscf, main="tscf correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+plot(cor.ols.mfws, main="MFWS correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
-plot(cor.sar.tscf, main="tscf correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+plot(cor.sar.mfws, main="MFWS correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
+
 
 # Tropical & Subtropical Dry Broadleaf Forests (TSDBF)  95749 ----
 tsdbf<-
@@ -431,43 +394,45 @@ abline(h=0, col="red")
 plot(cor.sar.tsdbf, main="tsdbf correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
 
-#  Tropical & Subtropical Grasslands, Savannas & Shrublands (TSGSS)   1908 ----
 
-tsgss<-
+# Tropical & Subtropical Coniferous Forests (tscf) 271629 ----
+tscf<-
   Z.slp.cats |> 
   filter(cat=="C") |> 
-  filter(BIOME_NAME=="Tropical & Subtropical Grasslands, Savannas & Shrublands")
-head(tsgss)
+  filter(BIOME_NAME=="Tropical & Subtropical Coniferous Forests") |> 
+  sample_n(size=10000,replace=F)
+head(tscf)
 
-tsgss.list<-
-  tsgss |> 
+tscf.list<-
+  tscf |> 
   SAR_bucle()
 
-tsgss.list[["results"]] #best model: MAX-W
-tsgss.list[["max"]]["W"] #best model
-# Correlograma para tsgss -----------------------------------------------------
+tscf.list[["results"]] #best model: MAX-W
+tscf.list[["max"]]["W"] #best model
+# Correlograma para tscf -----------------------------------------------------
 
-lm.tsgss<-
+lm.tscf<-
   lm(z ~ slope,
-     data = tsgss)
+     data = tscf)
 
 # OLS
-cor.ols.tsgss<- correlog(tsgss$x, tsgss$y,
-                         z = residuals(lm.tsgss),
+cor.ols.tscf<- correlog(tscf$x, tscf$y,
+                        z = residuals(lm.tscf),
+                        na.rm = TRUE,
+                        increment = 1,
+                        resamp = 1)
+# SAR
+cor.sar.tscf <- correlog(tscf$x, tscf$y,
+                         z = residuals(tscf.list[["max"]]["W"]$W),
                          na.rm = TRUE,
                          increment = 1,
                          resamp = 1)
-# SAR
-cor.sar.tsgss <- correlog(tsgss$x, tsgss$y,
-                          z = residuals(tsgss.list[["max"]]["W"]$W),
-                          na.rm = TRUE,
-                          increment = 1,
-                          resamp = 1)
 
-plot(cor.ols.tsgss, main="tsgss correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+plot(cor.ols.tscf, main="tscf correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
-plot(cor.sar.tsgss, main="tsgss correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+plot(cor.sar.tscf, main="tscf correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
+
 
 # Tropical & Subtropical Moist Broadleaf Forests (TSMBF)  80398 ----
 tsmbf<-
@@ -505,6 +470,45 @@ cor.sar.tsmbf <- correlog(tsmbf$x, tsmbf$y,
 plot(cor.ols.tsmbf, main="tsmbf correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
 plot(cor.sar.tsmbf, main="tsmbf correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+
+
+#  Tropical & Subtropical Grasslands, Savannas & Shrublands (TSGSS)   1908 ----
+
+tsgss<-
+  Z.slp.cats |> 
+  filter(cat=="C") |> 
+  filter(BIOME_NAME=="Tropical & Subtropical Grasslands, Savannas & Shrublands")
+head(tsgss)
+
+tsgss.list<-
+  tsgss |> 
+  SAR_bucle()
+
+tsgss.list[["results"]] #best model: MAX-W
+tsgss.list[["max"]]["W"] #best model
+# Correlograma para tsgss -----------------------------------------------------
+
+lm.tsgss<-
+  lm(z ~ slope,
+     data = tsgss)
+
+# OLS
+cor.ols.tsgss<- correlog(tsgss$x, tsgss$y,
+                         z = residuals(lm.tsgss),
+                         na.rm = TRUE,
+                         increment = 1,
+                         resamp = 1)
+# SAR
+cor.sar.tsgss <- correlog(tsgss$x, tsgss$y,
+                          z = residuals(tsgss.list[["max"]]["W"]$W),
+                          na.rm = TRUE,
+                          increment = 1,
+                          resamp = 1)
+
+plot(cor.ols.tsgss, main="tsgss correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+abline(h=0, col="red")
+plot(cor.sar.tsgss, main="tsgss correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
 
 # Todos en el mismo plot
@@ -555,7 +559,7 @@ summary(SAR_res_10k.C[["max"]]["W"]$W, Nagelkerke=TRUE)
 
 #summary(error_min_t, Nagelkerke=TRUE) Este ya no va
 
-confint(bes.tot, level=0.95)
+confint(dxs.list[["max"]]["W"]$W, level=0.95)
 
 slp_z_g<-
 z.slp.sample.Tot |> 
@@ -565,8 +569,9 @@ z.slp.sample.Tot |>
   annotate(geom="text", x=20, y=30, 
            label=expression(atop("y=0.47x + 2.54",
                                  paste(italic("p"),"-value<2.2e-16"))))+
-  labs(x="Terrain slope", y="Richness") +
-  theme_classic()
+  labs(x="Terrain slope", y="Richness", title="National") +
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))
 
 slp_z_cat<-
 z.slp.sample.C |> 
@@ -577,9 +582,10 @@ z.slp.sample.C |>
            label=expression(atop("y=0.26x + 2.51",
                            paste(italic("p"),"-value<2.2e-16"))))+
   scale_color_manual(values=c("#248f5d"), labels = c("Conservado"))+
-  labs(x="Terrain slope", y="Richness", color="Categorias") +
+  labs(x="Terrain slope", y="Richness", color="Categorias", title="Conserved") +
   theme_classic()+
-  theme(axis.title.y = element_blank(),
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.y = element_blank(),
         legend.position = "none")
 
 #library(patchwork)
@@ -596,7 +602,8 @@ ggsave(filename = "./outputs/SAR_zxslp.png",
 
 # DXS: Desiertos y matorrales xerófilos
 dxs.list[["results"]] #max-W
-dxs.list[["max"]][["W"]] |> summary()
+dxs.list[["max"]][["W"]] |> summary(Nagelkerke=TRUE)
+confint(dxs.list[["max"]]["W"]$W, level=0.95)
 
 plot.dxs<-
   dxs |> 
@@ -609,7 +616,7 @@ plot.dxs<-
                                        "-value<2.2e-16"))), 
            parse=T, size=3.8)+
   labs(x="Terrain slope", y="Richness", color="Categorias", 
-       title="Deserts and xeric shrublands") +
+       title="DXS") +
   theme_classic()+
   theme(plot.title = element_text(hjust = 0.5),
         axis.title.x = element_blank())
@@ -617,7 +624,8 @@ plot.dxs<-
 
 # MFWS: Mediterranean forests, woodlands, and scrub
 mfws.list[["results"]] #max-S
-mfws.list[["max"]][["S"]] |> summary()
+mfws.list[["max"]][["S"]] |> summary(Nagelkerke = T)
+confint(mfws.list[["max"]]["S"]$S, level=0.95)
 
 plot.mfws<-
 mfws |> 
@@ -629,7 +637,7 @@ mfws |>
                                  paste(italic("p"),"-value=0.34"))), 
            parse=T, size=3.8)+
   labs(x="Terrain slope", y="Richness", color="Categorias", 
-       title=expression(atop("Mediterranean forests,","woodlands, and scrub"))) +
+       title="MFWS") +
   theme_classic()+
   theme(plot.title = element_text(hjust = 0.5),
         axis.title.y = element_blank(),
@@ -637,7 +645,8 @@ mfws |>
 
 # TSDBF: Tropical and subtropical dry broadleaf forests
 tsdbf.list[["results"]] #max-W
-tsdbf.list[["max"]][["W"]] |> summary()
+tsdbf.list[["max"]][["W"]] |> summary(Nagelkerke = T)
+confint(tsdbf.list[["max"]]["W"]$W, level=0.95)
 
 plot.tsdbf<-
   tsdbf |> 
@@ -650,7 +659,7 @@ plot.tsdbf<-
            parse=T, size=3.8)+
   xlim(0, 33) +  ylim(0, 28) +
   labs(x="Terrain slope", y="Richness", color="Categorias", 
-       title=expression(atop("Tropical and subtropical", "dry broadleaf forests"))) +
+       title="TSDBF") +
   theme_classic()+
   theme(plot.title = element_text(hjust = 0.5),
         axis.title.y = element_blank(),
@@ -658,7 +667,8 @@ plot.tsdbf<-
 
 # TSCF: Bosques de coníferas tropicales y subtropicales
 tscf.list[["results"]] #max-W
-tscf.list[["max"]][["W"]] |> summary()
+tscf.list[["max"]][["W"]] |> summary(Nagelkerke = T)
+confint(tscf.list[["max"]]["W"]$W, level=0.95)
 
 plot.tscf<-
 tscf |> 
@@ -671,13 +681,15 @@ tscf |>
            parse=T, size=3.8)+
   xlim(0, 30) +  ylim(0, 28) +
   labs(x="Terrain slope", y="Richness", color="Categorias", 
-       title=expression(atop("Tropical and subtropical", "coniferous forests"))) +
+       title="TSCF") +
   theme_classic()+
   theme(plot.title = element_text(hjust = 0.5))
 
 # TSMBF: Tropical and subtropical moist broadleaf forests
 tsmbf.list[["results"]] #max-W
-tsmbf.list[["max"]][["W"]] |> summary()
+tsmbf.list[["max"]][["W"]] |> summary(Nagelkerke = T)
+confint(tsmbf.list[["max"]]["W"]$W, level=0.95)
+
 
 plot.tsmbf<-
   tsmbf |> 
@@ -690,14 +702,15 @@ plot.tsmbf<-
            parse=T, size=3.8)+
   xlim(0, 32) +  ylim(0, 28) +
   labs(x="Terrain slope", y="Richness", color="Categorias", 
-       title=expression(atop("Tropical and subtropical moist", "broadleaf forests"))) +
+       title="TSMBF") +
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5),
         axis.title.y = element_blank())
 
 # TSGSS: Tropical and subtropical grasslands
 tsgss.list[["results"]] #max-W
-tsgss.list[["max"]][["W"]] |> summary()
+tsgss.list[["max"]][["W"]] |> summary(Nagelkerke = T)
+confint(tsgss.list[["max"]]["W"]$W, level=0.95)
 
 plot.tsgss<-
 tsgss |> 
@@ -709,7 +722,7 @@ tsgss |>
                                  paste(italic("p"),"-value=0.01"))),
            parse=T, size=3.8)+
   labs(x="Terrain slope", y="Richness", color="Categorias", 
-       title=expression(atop("Tropical and subtropical grasslands,", "savannas and shrublands"))) +
+       title="TSGSS") +
   theme_classic()+
   theme(plot.title = element_text(hjust = 0.5),
         axis.title.y = element_blank())
@@ -723,7 +736,7 @@ ggsave(filename = "./outputs/SAR_biomes.png",
        units ="cm",
        dpi = 200)
 
-(slp_z_g + slp_z_cat ) / (plot.dxs + plot.mfws + plot.tsdbf + plot.tscf + plot.tsmbf + plot.tsgss) + plot_annotation(tag_levels = list(c('A', 'B', 'C')))
+(slp_z_g + slp_z_cat ) / (plot.dxs + plot.mfws + plot.tsdbf + plot.tscf + plot.tsmbf + plot.tsgss) + plot_annotation(tag_levels = list(c('A', ' ', 'B')))
 
 ggsave(filename = "./outputs/SAR_merged.png",
        width = 13,
