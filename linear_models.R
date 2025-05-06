@@ -50,6 +50,8 @@ head(spd.list.join)
 #load("Scripts/codigoGLS/SAR_10k.Rdata")
 
 Z.slp.cats<- read.table("D:/Mauro/Msc/Otros/Z.slp.cats.txt", sep = "\t", dec=".", header=T)
+#Z.slp.cats<- read.table("./outputs/Z.slp.cats.txt", sep = "\t", dec=".", header=T)
+
 
 SAR_bucle<-function(data){
   #1. DF to contain the model results and AIC values
@@ -258,9 +260,9 @@ cor.sar.c <- correlog(z.slp.sample.C$x, z.slp.sample.C$y,
 
 par(mfrow=c(2,2))
 
-plot(cor.ols.g, main="National correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+plot(cor.ols.g, main="National scale correlation OLS", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
-plot(cor.sar.g, main="National correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
+plot(cor.sar.g, main="National scale correlation  SAR", ylim=c(-3,1), ylab="Correlation", xlab="Distance (Clase of distance)")
 abline(h=0, col="red")
 
 plot(cor.ols.c, main="Conserved areas correlation OLS", ylim=c(-3,1), 
@@ -738,12 +740,12 @@ ggsave(filename = "./outputs/SAR_biomes.png",
 
 (slp_z_g + slp_z_cat ) / (plot.dxs + plot.mfws + plot.tsdbf + plot.tscf + plot.tsmbf + plot.tsgss) + plot_annotation(tag_levels = list(c('A', ' ', 'B')))
 
-ggsave(filename = "./outputs/SAR_merged.png",
+ggsave(filename = "C:/Users/Mauricio Diaz/Documents/Maestria/Tesis Msc/publicacion_Msc/Submission/response/Figures_Resub/figure_4.tif",#"./outputs/SAR_merged.tif"
        width = 13,
        height = 15, #alto
        scale=2,
        units ="cm",
-       dpi = 200)
+       dpi = 300)
 
 #save.image("./Scripts/codigoGLS/SAR_10k.Rdata")
 

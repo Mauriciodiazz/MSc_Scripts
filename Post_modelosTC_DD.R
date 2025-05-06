@@ -764,7 +764,6 @@ ggsave(filename = "./outputs/slp_cat2.svg",
        dpi = 200)
 
 spp_slp.join |> 
-  summarise(medi=median(slope, na.rm = T), sd=sd(slope), .by=cat)
 
 # Zonificación de la pendiente en T y C ------------------------------------
 
@@ -943,6 +942,51 @@ zon |>
          units ="cm",
          dpi = 200)
   
+
+# Violin por bioma  -------------------------------------------------------
+
+z.slp.biom<-zon |>
+    mutate(
+      slope.cod = case_when(
+        slope >= 0 & slope < 2 ~ "Flat",
+        slope > 2 & slope < 10 ~ "Slight",
+        slope > 10 & slope < 20 ~ "Moderate",
+        slope > 20  ~ "High")) |>
+    filter(cat == "C" & z!=0) |> 
+    filter(zonif!="Mangroves") |> 
+    as_tibble() 
+
+z.slp.biom |>
+mutate(zonif=factor(zonif, levels = c("Deserts & Xeric Shrublands",
+                                    "Mediterranean Forests, Woodlands & Scrub",
+                                    "Tropical & Subtropical Dry Broadleaf Forests",
+                                    "Tropical & Subtropical Coniferous Forests",
+                                    "Tropical & Subtropical Moist Broadleaf Forests",
+                                    "Tropical & Subtropical Grasslands, Savannas & Shrublands")),
+       slope.cod=factor(slope.cod, levels=c("Flat", "Slight", "Moderate", "High"))) |> 
+    ggplot(aes(x = slope.cod, y = z)) +
+    geom_violin(fill="#248f5d") +
+    facet_wrap( ~ zonif, scales = "free",
+                labeller = as_labeller(c(
+                  `Deserts & Xeric Shrublands` = "DXS",
+                  `Mediterranean Forests, Woodlands & Scrub` ="MFWS",
+                  `Tropical & Subtropical Coniferous Forests` ="TSCF",
+                  `Tropical & Subtropical Dry Broadleaf Forests` ="TSDBF",
+                  `Tropical & Subtropical Grasslands, Savannas & Shrublands` ="TSGSS",
+                  `Tropical & Subtropical Moist Broadleaf Forests` ="TSMBF"))) +
+  scale_y_continuous(breaks = scales::breaks_extended()) +
+    theme_classic() +
+    labs(x = "Terrain slope", y = "Richness") +
+  theme(axis.title.x = element_blank())
+  
+
+ggsave(filename = "./outputs/z.slp.biom.svg",
+       width = 10,
+       height = 10, #alto
+       scale=2,
+       units ="cm",
+       dpi = 300)
+
 
 # ------------------------------------------- Pendente por especie ----------------------------
 
